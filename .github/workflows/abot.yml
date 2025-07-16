@@ -1,0 +1,35 @@
+name: ABot Feature Test Execution
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-abot-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install Newman
+        run: npm install -g newman
+
+      - name: Run ABot Postman Collection
+        run: |
+          newman run ABot_API_Fixed.postman_collection.json \
+            --environment ABot_ENV.postman_environment.json \
+            --reporters cli,html,json \
+            --reporter-html-export abot-report.html \
+            --reporter-json-export abot-report.json
+
+      - name: Upload HTML Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: abot-html-report
+          path: abot-report.html
+
+      - name: Upload JSON Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: abot-json-report
+          path: abot-report.json
