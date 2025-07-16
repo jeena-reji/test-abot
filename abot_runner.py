@@ -21,6 +21,15 @@ def login():
         "password": PASSWORD
     })
     resp.raise_for_status()
+
+
+    
+    # Debug: print response details
+    print(f"→ Status code: {resp.status_code}")
+    print(f"→ Response body: {resp.text}")
+
+    # Fail if status is not 200
+    resp.raise_for_status()
     token = resp.json().get("data", {}).get("token")
     if not token:
         raise Exception("Login failed: No token in response")
