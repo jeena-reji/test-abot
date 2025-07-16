@@ -9,7 +9,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Newman
         run: npm install -g newman
@@ -23,13 +23,13 @@ jobs:
             --reporter-json-export abot-report.json
 
       - name: Upload HTML Report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: abot-html-report
           path: abot-report.html
 
       - name: Upload JSON Report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: abot-json-report
           path: abot-report.json
