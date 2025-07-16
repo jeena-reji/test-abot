@@ -13,8 +13,13 @@ jobs:
 
       - name: Install Newman
         run: |
-           npm install -g newman
-           npm install -g newman-reporter-html
+          mkdir -p ~/.npm-global
+          npm config set prefix '~/.npm-global'
+          export PATH=$HOME/.npm-global/bin:$PATH
+          npm install -g newman
+          npm install -g newman-reporter-html
+          echo "PATH=$HOME/.npm-global/bin:$PATH" >> $GITHUB_ENV
+
 
       - name: Run ABot Postman Collection
         run: |
