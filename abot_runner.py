@@ -1,4 +1,3 @@
-
 import requests
 import time
 import json
@@ -6,40 +5,37 @@ import sys
 from datetime import datetime
 
 # ========== CONFIG ==========
-
 ABOT_BASE_URL = "http://10.176.27.73/abotrest/abot/api/v5"
-USERNAME = "Ajeesh Jose"
+EMAIL = "ajeesh@cazelabs.com"  #  Your actual ABot login email
 PASSWORD = "ajeesh1234"
 CONFIG_FILENAME = "abot-emulated - testbed-4g5g.properties"
 POLL_INTERVAL = 10  # seconds
 
 # ========== AUTH ==========
 def login():
-    print("Logging into ABot...")
+    print(" Logging into ABot...")
     login_payload = {
-        "username": USERNAME,
+        "email": EMAIL,
         "password": PASSWORD
     }
 
     try:
         resp = requests.post(f"{ABOT_BASE_URL}/login", json=login_payload)
         print(f"→ Status code: {resp.status_code}")
-        print(f"→ Response body: {resp.text}")  #  this shows ABot's actual error message
+        print(f"→ Response body: {resp.text}")  # debug output
 
-        resp.raise_for_status()  # will raise HTTPError if 400
+        resp.raise_for_status()
         token = resp.json().get("data", {}).get("token")
         if not token:
             raise Exception("Login failed: No token in response")
-        print("Login successful")
+        print(" Login successful")
         return token
     except requests.exceptions.HTTPError as err:
         print(" HTTPError during login")
         print(f"Response content: {resp.text}")
         raise
 
-
 # ========== HEADERS ==========
-
 def auth_headers(token):
     return {
         "Authorization": f"Bearer {token}",
@@ -47,14 +43,12 @@ def auth_headers(token):
     }
 
 # ========== FEATURE TAGS ==========
-
 def fetch_feature_tags(token):
     resp = requests.get(f"{ABOT_BASE_URL}/feature_files_tags", headers=auth_headers(token))
     resp.raise_for_status()
     return resp.json().get("data", [])
 
 # ========== CONFIG UPDATE ==========
-
 def update_config(token):
     url = f"{ABOT_BASE_URL}/update_config_properties"
     params = {
@@ -67,12 +61,11 @@ def update_config(token):
     }
     resp = requests.post(url, params=params, headers=auth_headers(token), json=data)
     resp.raise_for_status()
-    print("✅ Config updated")
+    print("Config updated")
 
 # ========== EXECUTE FEATURE TAG ==========
-
 def execute_tag(token, tag):
-    print(f"🚀 Executing feature tag: {tag}")
+    print(f" Executing feature tag: {tag}")
     resp = requests.post(f"{ABOT_BASE_URL}/feature_files/execute", headers=auth_headers(token), json={
         "feature_tag": tag
     })
@@ -80,9 +73,8 @@ def execute_tag(token, tag):
     return True
 
 # ========== WAIT FOR EXECUTION ==========
-
 def wait_for_completion(token):
-    print("⏳ Waiting for execution to complete...")
+    print(" Waiting for execution to complete...")
     while True:
         resp = requests.get(f"{ABOT_BASE_URL}/execution_status", headers=auth_headers(token))
         resp.raise_for_status()
@@ -91,19 +83,17 @@ def wait_for_completion(token):
         if status == "COMPLETED":
             return True
         elif status == "FAILED":
-            print("❌ Execution failed")
+            print(" Execution failed")
             return False
         time.sleep(POLL_INTERVAL)
 
 # ========== FETCH SUMMARY ==========
-
 def fetch_summary(token):
     resp = requests.get(f"{ABOT_BASE_URL}/execution_summary", headers=auth_headers(token))
     resp.raise_for_status()
     return resp.json()
 
 # ========== MAIN RUNNER ==========
-
 def main():
     token = login()
     update_config(token)
@@ -139,7 +129,7 @@ def main():
             all_results.append(result)
 
         except Exception as e:
-            print(f"❌ Error while executing tag {tag}: {e}")
+            print(f" Error while executing tag {tag}: {e}")
             any_failures = True
             all_results.append({
                 "tag": tag,
@@ -151,9 +141,9 @@ def main():
     with open(f"abot_execution_summary_{timestamp}.json", "w") as f:
         json.dump(all_results, f, indent=2)
 
-    print(f"✅ Execution completed for {len(tags)} feature tags")
+    print(f" Execution completed for {len(tags)} feature tags")
     if any_failures:
-        print("❌ Some executions failed. Failing pipeline.")
+        print("Some executions failed. Failing pipeline.")
         sys.exit(1)
 
 if __name__ == "__main__":
