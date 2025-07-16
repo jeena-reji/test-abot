@@ -14,26 +14,29 @@ CONFIG_FILENAME = "abot-emulated - testbed-4g5g.properties"
 POLL_INTERVAL = 10  # seconds
 
 # ========== AUTH ==========
-
 def login():
-    resp = requests.post(f"{ABOT_BASE_URL}/login", json={
+    print("Logging into ABot...")
+    login_payload = {
         "username": USERNAME,
         "password": PASSWORD
-    })
-    resp.raise_for_status()
+    }
 
+    try:
+        resp = requests.post(f"{ABOT_BASE_URL}/login", json=login_payload)
+        print(f"→ Status code: {resp.status_code}")
+        print(f"→ Response body: {resp.text}")  #  this shows ABot's actual error message
 
-    
-    # Debug: print response details
-    print(f"→ Status code: {resp.status_code}")
-    print(f"→ Response body: {resp.text}")
+        resp.raise_for_status()  # will raise HTTPError if 400
+        token = resp.json().get("data", {}).get("token")
+        if not token:
+            raise Exception("Login failed: No token in response")
+        print("Login successful")
+        return token
+    except requests.exceptions.HTTPError as err:
+        print(" HTTPError during login")
+        print(f"Response content: {resp.text}")
+        raise
 
-    # Fail if status is not 200
-    resp.raise_for_status()
-    token = resp.json().get("data", {}).get("token")
-    if not token:
-        raise Exception("Login failed: No token in response")
-    return token
 
 # ========== HEADERS ==========
 
