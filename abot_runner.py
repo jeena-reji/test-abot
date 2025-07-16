@@ -44,9 +44,15 @@ def auth_headers(token):
 
 # ========== FEATURE TAGS ==========
 def fetch_feature_tags(token):
-    resp = requests.get(f"{ABOT_BASE_URL}/feature_files_tags", headers=auth_headers(token))
+    print(" Fetching available feature file/folders...")
+    resp = requests.get(f"{ABOT_BASE_URL}/feature_file", headers=auth_headers(token))
+    print(f"→ Status: {resp.status_code}")
+    print(f"→ Raw response: {resp.text}")  # For debugging
+
     resp.raise_for_status()
     return resp.json().get("data", [])
+
+    return data
 
 # ========== CONFIG UPDATE ==========
 def update_config(token):
@@ -97,7 +103,7 @@ def fetch_summary(token):
 def main():
     token = login()
     update_config(token)
-    tags = fetch_feature_tags(token)
+    tags = fetch_feature_file(token)
 
     all_results = []
     any_failures = False
