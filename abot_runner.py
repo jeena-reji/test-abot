@@ -8,8 +8,8 @@ from datetime import datetime
 # ========== CONFIG ==========
 
 ABOT_BASE_URL = "http://10.176.27.73/abotrest/abot/api/v5"
-USERNAME = "admin"
-PASSWORD = "admin1234"
+USERNAME = "Ajeesh Jose"
+PASSWORD = "ajeesh1234"
 CONFIG_FILENAME = "abot-emulated - testbed-4g5g.properties"
 POLL_INTERVAL = 10  # seconds
 
