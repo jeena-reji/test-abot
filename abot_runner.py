@@ -44,17 +44,25 @@ def auth_headers(token):
 
 # ========== FEATURE TAGS ==========
 def fetch_feature_files(token):
-    print("Listing ABot feature files under: featureFiles/ajeesh_cazelabs_com")
+    print("Listing ABot .feature files under: featureFiles/ajeesh_cazelabs_com")
     path = "featureFiles/ajeesh_cazelabs_com"
-    resp = requests.get(f"{ABOT_BASE_URL}/files?path={path}", headers=auth_headers(token))
-    print(f"→ Status code: {resp.status_code}")
+    url = f"{ABOT_BASE_URL}/file_list?path={path}"
+    resp = requests.get(url, headers=auth_headers(token))
+    print(f"→ Status: {resp.status_code}")
     print(f"→ Raw response: {resp.text}")
 
     resp.raise_for_status()
     files = resp.json().get("data", [])
-    tag_names = [entry["name"] for entry in files if entry.get("name") and entry["name"].endswith(".feature")]
-    print(f"Found {len(tag_names)} .feature files")
-    return tag_names
+    
+    tag_paths = [
+        entry["path"]
+        for entry in files
+        if entry.get("path", "").endswith(".feature")
+    ]
+
+    print(f" Found {len(tag_paths)} .feature files")
+    return tag_paths
+
 
 
     
