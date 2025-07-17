@@ -13,8 +13,10 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y jq curl
+          sudo apt-get update -o Acquire::http::Timeout=\"5\" -o Acquire::Retries=3
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y jq curl
+
+          
 
       - name: Get ABot Token
         id: login
