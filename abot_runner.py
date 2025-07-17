@@ -43,7 +43,7 @@ def auth_headers(token):
     }
 
 # ========== FEATURE TAGS ==========
-def fetch_feature_file(token):
+def fetch_feature_files(token):
     print("Fetching feature files from ABot /files endpoint...")
     path = "featureFiles"  # Root folder in ABot UI
     resp = requests.get(f"{ABOT_BASE_URL}/files?path={path}", headers=auth_headers(token))
