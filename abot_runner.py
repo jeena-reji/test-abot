@@ -38,15 +38,15 @@ def auth_headers(token):
 
 # ========== HARDCODED FEATURE FILES ==========
 def fetch_feature_files(token):
-    print("📄 Using hardcoded list of feature files from ABot UI")
+    print(" Using hardcoded list of feature files from ABot UI")
     return [
-        "featureFiles/ajeesh_cazelabs_com/000-local-commands.feature",
-        "featureFiles/ajeesh_cazelabs_com/001-ssh-commands.feature",
-        "featureFiles/ajeesh_cazelabs_com/3GPP-23401-4G/test1.feature",
-        "featureFiles/ajeesh_cazelabs_com/3GPP-23502-5G/test2.feature",
-        "featureFiles/ajeesh_cazelabs_com/System_Tests/test-system.feature",
-        # Add more if needed from UI
+        "000-local-commands",
+        "001-ssh-commands",
+        "3GPP-23401-4G/test1",
+        "3GPP-23502-5G/test2",
+        "System_Tests/test-system"
     ]
+
 
 # ========== CONFIG UPDATE ==========
 def update_config(token):
