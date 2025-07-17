@@ -43,7 +43,7 @@ def auth_headers(token):
     }
 
 # ========== FEATURE TAGS ==========
-def fetch_feature_files(token, path="featureFiles"):
+def fetch_feature_files(token, path="Feature File"):
     print(f"Listing ABot feature files under: {path}")
     resp = requests.get(f"{ABOT_BASE_URL}/files?path={path}", headers=auth_headers(token))
     resp.raise_for_status()
