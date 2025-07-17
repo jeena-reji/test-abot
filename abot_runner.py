@@ -6,7 +6,7 @@ from datetime import datetime
 
 # ========== CONFIG ==========
 ABOT_BASE_URL = "http://10.176.27.73/abotrest/abot/api/v5"
-EMAIL = "ajeesh@cazelabs.com"  #  Your actual ABot login email
+EMAIL = "ajeesh@cazelabs.com"
 PASSWORD = "ajeesh1234"
 CONFIG_FILENAME = "abot-emulated - testbed-4g5g.properties"
 POLL_INTERVAL = 10  # seconds
@@ -18,22 +18,16 @@ def login():
         "email": EMAIL,
         "password": PASSWORD
     }
+    resp = requests.post(f"{ABOT_BASE_URL}/login", json=login_payload)
+    print(f"→ Status code: {resp.status_code}")
+    print(f"→ Response body: {resp.text}")
+    resp.raise_for_status()
 
-    try:
-        resp = requests.post(f"{ABOT_BASE_URL}/login", json=login_payload)
-        print(f"→ Status code: {resp.status_code}")
-        print(f"→ Response body: {resp.text}")  # debug output
-
-        resp.raise_for_status()
-        token = resp.json().get("data", {}).get("token")
-        if not token:
-            raise Exception("Login failed: No token in response")
-        print(" Login successful")
-        return token
-    except requests.exceptions.HTTPError as err:
-        print(" HTTPError during login")
-        print(f"Response content: {resp.text}")
-        raise
+    token = resp.json().get("data", {}).get("token")
+    if not token:
+        raise Exception("Login failed: No token in response")
+    print(" Login successful")
+    return token
 
 # ========== HEADERS ==========
 def auth_headers(token):
@@ -42,35 +36,21 @@ def auth_headers(token):
         "Content-Type": "application/json"
     }
 
-# ========== FEATURE TAGS ==========
+# ========== HARDCODED FEATURE FILES ==========
 def fetch_feature_files(token):
-    print("Listing ABot .feature files under: featureFiles/ajeesh_cazelabs_com")
-    path = "featureFiles/ajeesh_cazelabs_com"
-    url = f"{ABOT_BASE_URL}/file_list?path={path}"
-    resp = requests.get(url, headers=auth_headers(token))
-    print(f"→ Status: {resp.status_code}")
-    print(f"→ Raw response: {resp.text}")
-
-    resp.raise_for_status()
-    files = resp.json().get("data", [])
-    
-    tag_paths = [
-        entry["path"]
-        for entry in files
-        if entry.get("path", "").endswith(".feature")
+    print("📄 Using hardcoded list of feature files from ABot UI")
+    return [
+        "featureFiles/ajeesh_cazelabs_com/000-local-commands.feature",
+        "featureFiles/ajeesh_cazelabs_com/001-ssh-commands.feature",
+        "featureFiles/ajeesh_cazelabs_com/3GPP-23401-4G/test1.feature",
+        "featureFiles/ajeesh_cazelabs_com/3GPP-23502-5G/test2.feature",
+        "featureFiles/ajeesh_cazelabs_com/System_Tests/test-system.feature",
+        # Add more if needed from UI
     ]
-
-    print(f" Found {len(tag_paths)} .feature files")
-    return tag_paths
-
-
-
-    
-
-  
 
 # ========== CONFIG UPDATE ==========
 def update_config(token):
+    print("⚙️ Updating config...")
     url = f"{ABOT_BASE_URL}/update_config_properties"
     params = {
         "filename": "/etc/rebaca-test-suite/config/admin/ABotConfig.properties"
@@ -84,27 +64,27 @@ def update_config(token):
     resp.raise_for_status()
     print("Config updated")
 
-# ========== EXECUTE FEATURE TAG ==========
+# ========== EXECUTE FEATURE ==========
 def execute_tag(token, tag):
-    print(f" Executing feature tag: {tag}")
+    print(f" Executing feature: {tag}")
     resp = requests.post(f"{ABOT_BASE_URL}/feature_files/execute", headers=auth_headers(token), json={
         "feature_tag": tag
     })
     resp.raise_for_status()
     return True
 
-# ========== WAIT FOR EXECUTION ==========
+# ========== WAIT FOR COMPLETION ==========
 def wait_for_completion(token):
     print(" Waiting for execution to complete...")
     while True:
         resp = requests.get(f"{ABOT_BASE_URL}/execution_status", headers=auth_headers(token))
         resp.raise_for_status()
         status = resp.json().get("data", {}).get("execution_status", "")
-        print(f"   → Current status: {status}")
+        print(f"   → Status: {status}")
         if status == "COMPLETED":
             return True
         elif status == "FAILED":
-            print(" Execution failed")
+            print("❌ Execution failed")
             return False
         time.sleep(POLL_INTERVAL)
 
@@ -114,13 +94,13 @@ def fetch_summary(token):
     resp.raise_for_status()
     return resp.json()
 
-# ========== MAIN RUNNER ==========
+# ========== MAIN ==========
 def main():
     token = login()
     update_config(token)
     tags = fetch_feature_files(token)
-    print(f"Found {len(tags)} .feature files")
 
+    print(f"📌 Found {len(tags)} feature files to execute")
 
     all_results = []
     any_failures = False
@@ -152,7 +132,7 @@ def main():
             all_results.append(result)
 
         except Exception as e:
-            print(f" Error while executing tag {tag}: {e}")
+            print(f" Error with tag {tag}: {e}")
             any_failures = True
             all_results.append({
                 "tag": tag,
@@ -160,13 +140,14 @@ def main():
                 "error": str(e)
             })
 
+    # Save output
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     with open(f"abot_execution_summary_{timestamp}.json", "w") as f:
         json.dump(all_results, f, indent=2)
 
-    print(f" Execution completed for {len(tags)} feature tags")
+    print(f"\n Done. Executed {len(tags)} feature tags.")
     if any_failures:
-        print("Some executions failed. Failing pipeline.")
+        print("Some tags failed. Failing pipeline.")
         sys.exit(1)
 
 if __name__ == "__main__":
