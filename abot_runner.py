@@ -43,28 +43,19 @@ def auth_headers(token):
     }
 
 # ========== FEATURE TAGS ==========
-def fetch_feature_files(token, path=""):
-    print(f"Listing ABot feature files under:{path or 'root'}")
+def fetch_feature_files(token):
+    print("Listing ABot feature files under: featureFiles/ajeesh_cazelabs_com")
+    path = "featureFiles/ajeesh_cazelabs_com"
     resp = requests.get(f"{ABOT_BASE_URL}/files?path={path}", headers=auth_headers(token))
+    print(f"→ Status code: {resp.status_code}")
+    print(f"→ Raw response: {resp.text}")
+
     resp.raise_for_status()
+    files = resp.json().get("data", [])
+    tag_names = [entry["name"] for entry in files if entry.get("name") and entry["name"].endswith(".feature")]
+    print(f"Found {len(tag_names)} .feature files")
+    return tag_names
 
-    entries = resp.json().get("data", [])
-    feature_paths = []
-
-    for entry in entries:
-        name = entry.get("name")
-        if not name:
-            continue
-        entry_type = entry.get("type")  # 'file' or 'folder'
-        full_path = f"{path}/{name}"
-
-        if entry_type == "file" and name.endswith(".feature"):
-            feature_paths.append(full_path)
-        elif entry_type == "folder":
-            # Recurse into subfolder
-            feature_paths += fetch_feature_files(token, path=full_path)
-
-    return feature_paths
 
     
 
