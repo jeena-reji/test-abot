@@ -38,13 +38,13 @@ def auth_headers(token):
 
 # ========== HARDCODED FEATURE FILES ==========
 def fetch_feature_files(token):
-    print(" Using hardcoded list of feature files from ABot UI")
+    print("📄 Using hardcoded list of feature tags from ABot UI")
     return [
-        "000-local-commands",
-        "001-ssh-commands",
-        "3GPP-23401-4G/test1",
-        "3GPP-23502-5G/test2",
-        "System_Tests/test-system"
+        "@local-commands",
+        "@ssh-tests",
+        "@test1-4g",
+        "@test2-5g",
+        "@system-test"
     ]
 
 
