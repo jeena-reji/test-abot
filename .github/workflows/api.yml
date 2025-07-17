@@ -1,0 +1,102 @@
+name: ABot CI/CD Execution
+
+on:
+  workflow_dispatch:
+
+jobs:
+  abot-test-execution:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq curl
+
+      - name: Get ABot Token
+        id: login
+        run: |
+          RESPONSE=$(curl -s -X POST "http://10.176.27.73/abotrest/abot/api/v5/login" \
+            -H "Content-Type: application/json" \
+            -d '{"email": "admin", "password": "admin1234", "expires": false}')
+
+          TOKEN=$(echo $RESPONSE | jq -r '.data.token')
+
+          if [[ "$TOKEN" == "null" ]]; then
+            echo "Login failed"
+            exit 1
+          fi
+
+          echo "TOKEN=$TOKEN" >> $GITHUB_ENV
+
+      - name: Update ABot config
+        run: |
+          curl -s -X POST "http://10.176.27.73/abotrest/abot/api/v5/update_config_properties?filename=/etc/rebaca-test-suite/config/admin/ABotConfig.properties" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $TOKEN" \
+            -d '{
+              "uncomment": [
+                "ABOT.SUTVARS=file:abot-emulated/sut-vars/default.properties"
+              ],
+              "comment": [
+                "ABOT.SUTVARS=file:abot-emulated/sut-vars/default5g.properties",
+                "ABOT.SUTVARS=file:abot-emulated/sut-vars/default4g5g.properties",
+                "ABOT.SUTVARS.ORAN=file:abot-emulated/sut-vars/default5g-oran.properties"
+              ],
+              "update": {}
+            }'
+
+      - name: Execute Feature File Tag (Example: initial-attach-test)
+        id: execute
+        run: |
+          EXEC_RES=$(curl -s -X POST "http://10.176.27.73/abotrest/abot/api/v5/feature_files/execute" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $TOKEN" \
+            -d '{"params": "initial-attach-test"}')
+
+          STATUS=$(echo $EXEC_RES | jq -r '.status')
+
+          if [[ "$STATUS" != "OK" ]]; then
+            echo "Execution failed to start"
+            exit 1
+          fi
+
+      - name: Wait for Execution Completion
+        run: |
+          echo "Waiting for test to complete..."
+          for i in {1..10}; do
+            STATUS=$(curl -s -X GET "http://10.176.27.73/abotrest/abot/api/v5/execution_status" \
+              -H "Authorization: Bearer $TOKEN" | jq -r '.executing.status')
+            if [[ "$STATUS" == "false" ]]; then
+              break
+            fi
+            sleep 30
+          done
+
+      - name: Check Execution Summary
+        id: check
+        run: |
+          ARTIFACT=$(curl -s -X GET "http://10.176.27.73/abotrest/abot/api/v5/latest_artifact_name" \
+            -H "Authorization: Bearer $TOKEN" | jq -r '.data.latest_artifact_timestamp')
+
+          SUMMARY=$(curl -s -X GET "http://10.176.27.73/abotrest/abot/api/v5/artifacts/execFeatureSummary?foldername=$ARTIFACT&page=1&limit=100" \
+            -H "Authorization: Bearer $TOKEN")
+
+          FAILED=$(echo "$SUMMARY" | jq -r '.feature_summary.result.totalScenarios.totalScenariosFailed.totalScenariosFailedNumber')
+
+          if [[ "$FAILED" != "0" ]]; then
+            echo "Test Failed"
+            exit 1
+          fi
+
+          echo "Test Passed"
+
+      - name: Download ABot Log (Optional)
+        run: |
+          curl -s -X GET "http://10.176.27.73/abotrest/abot/api/v5/artifacts/execFailureDetails?foldername=$ARTIFACT" \
+            -H "Authorization: Bearer $TOKEN"
+
+# Optionally add Slack/email/Teams notification on failure or success here.
