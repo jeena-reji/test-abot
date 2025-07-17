@@ -43,17 +43,29 @@ def auth_headers(token):
     }
 
 # ========== FEATURE TAGS ==========
-def fetch_feature_files(token):
-    print("Fetching feature files from ABot /files endpoint...")
-    path = "featureFiles"  # Root folder in ABot UI
+def fetch_feature_files(token, path="featureFiles"):
+    print(f"Listing ABot feature files under: {path}")
     resp = requests.get(f"{ABOT_BASE_URL}/files?path={path}", headers=auth_headers(token))
-    print(f"→ Status: {resp.status_code}")
-    print(f"→ Raw response: {resp.text}")  # For debugging
-
     resp.raise_for_status()
-    files = resp.json().get("data", [])
-    tag_names = [entry["name"] for entry in files if entry.get("name")]
-    return tag_names
+
+    entries = resp.json().get("data", [])
+    feature_paths = []
+
+    for entry in entries:
+        name = entry.get("name")
+        if not name:
+            continue
+        entry_type = entry.get("type")  # 'file' or 'folder'
+        full_path = f"{path}/{name}"
+
+        if entry_type == "file" and name.endswith(".feature"):
+            feature_paths.append(full_path)
+        elif entry_type == "folder":
+            # Recurse into subfolder
+            feature_paths += fetch_feature_files(token, path=full_path)
+
+    return feature_paths
+
     
 
   
@@ -108,6 +120,8 @@ def main():
     token = login()
     update_config(token)
     tags = fetch_feature_files(token)
+    print(f"Found {len(tags)} .feature files")
+
 
     all_results = []
     any_failures = False
