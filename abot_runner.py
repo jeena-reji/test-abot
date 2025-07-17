@@ -44,13 +44,17 @@ def auth_headers(token):
 
 # ========== FEATURE TAGS ==========
 def fetch_feature_file(token):
-    print(" Fetching available feature file/folders...")
-    resp = requests.get(f"{ABOT_BASE_URL}/feature_file", headers=auth_headers(token))
+    print("Fetching feature files from ABot /files endpoint...")
+    path = "featureFiles"  # Root folder in ABot UI
+    resp = requests.get(f"{ABOT_BASE_URL}/files?path={path}", headers=auth_headers(token))
     print(f"→ Status: {resp.status_code}")
     print(f"→ Raw response: {resp.text}")  # For debugging
 
     resp.raise_for_status()
-    return resp.json().get("data", [])
+    files = resp.json().get("data", [])
+    tag_names = [entry["name"] for entry in files if entry.get("name")]
+    return tag_names
+    
 
   
 
@@ -103,7 +107,7 @@ def fetch_summary(token):
 def main():
     token = login()
     update_config(token)
-    tags = fetch_feature_file(token)
+    tags = fetch_feature_files(token)
 
     all_results = []
     any_failures = False
