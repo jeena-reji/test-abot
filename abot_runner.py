@@ -29,7 +29,11 @@ def login():
 
 def list_folder(path, indent=0):
     try:
+        log(f"📂 Listing: '{path}'")
         resp = session.get(f"{ABOT_URL}/files", params={"path": path, "include_file": "true"})
+        log(f"🔎 Status: {resp.status_code}")
+        log(f"📨 Raw response: {resp.text}")  # <-- Add this line
+
         if resp.status_code != 200:
             log("❌ Error listing: " + path + " → " + resp.text)
             return
