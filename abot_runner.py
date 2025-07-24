@@ -22,16 +22,18 @@ def login():
     response = session.post(LOGIN_URL, json={"email": USERNAME, "password": PASSWORD})
     print(f"🔎 Status: {response.status_code}")
     print(f"📨 Response: {response.text}")
-
     response.raise_for_status()
     json_data = response.json()
 
-     token = json_data.get("data", {}).get("token")
+    # ✅ FIX: Extract token from inside the 'data' block
+    token = json_data.get("data", {}).get("token")
     if not token:
         raise Exception("❌ Login failed, token missing in 'data'.")
+    
     headers["Authorization"] = f"Bearer {token}"
     print("✅ Logged in successfully.")
     return token
+
 def fetch_features():
     print("📋 Fetching all feature files...")
     response = session.get(FEATURE_LIST_URL, headers=headers)
