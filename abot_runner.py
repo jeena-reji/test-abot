@@ -10,7 +10,8 @@ SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary"
 
 USERNAME = "ajeesh@cazelabs.com"
 PASSWORD = "ajeesh1234"
-FEATURE_TAG = "IOS_MCN_5GC_Pre_Release0.1.2"
+FEATURE_TAG = "sanity0.0.10-test"
+
 CONFIG_FILE = "/etc/rebaca-test-suite/config/admin/ABotConfig.properties"
 
 headers = {"Content-Type": "application/json"}
