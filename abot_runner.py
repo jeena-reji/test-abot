@@ -21,10 +21,11 @@ def login():
 
 def list_path(path):
     log(f"\n📂 Listing path: {path}")
-    r = session.get(f"{ABOT_URL}/files", params={"path": path, "include_file": "true"})
+    r = session.get(f"{ABOT_URL}/folder/list", params={"path": path})
     log(f"🔎 Status: {r.status_code}")
     log(f"📨 Raw: {r.text}")
     return r
+
 
 def main():
     login()
