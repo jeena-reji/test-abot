@@ -44,10 +44,18 @@ def update_config():
 
 def execute_feature():
     print(f"🚀 Executing feature tag: {FEATURE_TAG}")
-    payload = {"params": FEATURE_TAG}
+    payload = {
+        "params": {
+            "tag": FEATURE_TAG,
+            "env": "default",       # Adjust based on your config
+            "parallel": False,
+            "video": False
+        }
+    }
     res = requests.post(EXECUTE_URL, headers=headers, json=payload)
     res.raise_for_status()
     print("▶️ Test started.")
+
 
 def poll_status():
     print("⏳ Polling execution status...")
@@ -59,16 +67,16 @@ def poll_status():
         print(json.dumps(json_data, indent=2))
 
         
-        # Make sure keys exist
-        if "executing" in json_data and "executing" in json_data["executing"]:
-            exec_list = json_data["executing"]["executing"]
-            if exec_list and not exec_list[0].get("is_executing", False):
-                print("✅ Execution completed.")
-                return
-            else:
-                print("🟡 Still running... waiting 10s")
+      if "executing" in json_data:
+         exec_status = json_data["executing"]
+         if not exec_status.get("status", False):
+            print("✅ Execution completed.")
+            return
         else:
-            print("⚠️ Unexpected execution_status structure, retrying...")
+           print("🟡 Still running... waiting 10s")
+     else:
+         print("⚠️ Unexpected execution_status structure, retrying...")
+
         
         time.sleep(10)
 
