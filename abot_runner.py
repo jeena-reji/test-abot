@@ -8,8 +8,8 @@ STATUS_URL = f"{ABOT_URL}/abot/api/v5/execution_status"
 ARTIFACT_URL = f"{ABOT_URL}/abot/api/v5/latest_artifact_name"
 SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary"
 
-USERNAME = "admin"
-PASSWORD = "admin1234"
+USERNAME = "ajeesh@cazelabs.com"
+PASSWORD = "ajeesh1234"
 FEATURE_TAG = "initial-attach-test"
 CONFIG_FILE = "/etc/rebaca-test-suite/config/admin/ABotConfig.properties"
 
