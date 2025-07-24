@@ -55,6 +55,9 @@ def poll_status():
         res = requests.get(STATUS_URL, headers=headers)
         res.raise_for_status()
         json_data = res.json()
+        print("🧪 Raw /execution_status response:")
+        print(json.dumps(json_data, indent=2))
+
         
         # Make sure keys exist
         if "executing" in json_data and "executing" in json_data["executing"]:
