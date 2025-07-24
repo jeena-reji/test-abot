@@ -2,6 +2,7 @@ import requests
 import time
 import os
 
+# ABot Configuration
 ABOT_URL = "http://10.176.27.73/abotrest/abot/api/v5"
 EMAIL = "ajeesh@cazelabs.com"
 PASSWORD = "ajeesh1234"
@@ -34,27 +35,26 @@ def list_folder(path):
         log(f"\n📂 Listing folder: {path}")
         resp = session.get(f"{ABOT_URL}/files", params={"path": path})
         log(f"🔎 Status: {resp.status_code}")
-        log(f"📨 Response: {resp.text}")
         if resp.status_code == 200:
             return resp.json().get("data", [])
         else:
+            log(f"⚠️ Failed to list {path} → {resp.text}")
             return []
     except Exception as e:
-        log(f"⚠️ Failed to list {path}: {e}")
+        log(f"⚠️ Error listing {path}: {e}")
         return []
 
-
-def find_feature_files(path=""):
+def find_feature_files(path):
     all_features = []
     stack = [path]
     while stack:
         current = stack.pop()
         items = list_folder(current)
         for item in items:
-            full_path = os.path.join(current, item["name"])
-            if item["is_file"] and full_path.endswith(".feature"):
+            full_path = os.path.join(current, item["name"]).replace("\\", "/")
+            if item.get("is_file") and full_path.endswith(".feature"):
                 all_features.append(full_path)
-            elif not item["is_file"]:
+            elif not item.get("is_file"):
                 stack.append(full_path)
     return all_features
 
@@ -65,7 +65,7 @@ def execute_feature(file_path):
         log(f"🚀 Triggered: {file_path} → Execution ID: {exec_id}")
         return exec_id
     else:
-        log(f"❌ Failed to execute {file_path}")
+        log(f"❌ Failed to execute {file_path} → {resp.text}")
         return None
 
 def wait_for_completion(exec_id, timeout=600):
@@ -73,6 +73,8 @@ def wait_for_completion(exec_id, timeout=600):
     while time.time() - start < timeout:
         time.sleep(5)
         resp = session.get(f"{ABOT_URL}/execution_status")
+        if resp.status_code != 200:
+            continue
         data = resp.json().get("data", [])
         for item in data:
             if item.get("execution_id") == exec_id:
@@ -84,10 +86,28 @@ def wait_for_completion(exec_id, timeout=600):
 def main():
     login()
     log("📁 Discovering all .feature files recursively...")
-    features = find_feature_files()
+
+    base_paths = [
+        "featureFiles/3GPP-23401-4G",
+        "featureFiles/3GPP-23502-5G",
+        "featureFiles/3GPP-38401-5G-ORAN",
+        "featureFiles/Conformance",
+        "featureFiles/IMS",
+        "featureFiles/IOS_MCN_5GC_Pre_Release0.1.2",
+        "featureFiles/IOS_MCN_5GC_Release0.0.10",
+        "featureFiles/IOS_MCN_5GC_UPDATED",
+        "featureFiles/Load_for_10_gNB",
+        "featureFiles/System_Tests"
+    ]
+
+    features = []
+    for path in base_paths:
+        features += find_feature_files(path)
+
     if not features:
         log("⚠️ No feature files found.")
         return
+
     log(f"✅ Found {len(features)} feature files.")
     
     failed = []
