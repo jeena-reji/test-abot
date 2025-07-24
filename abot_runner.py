@@ -31,7 +31,10 @@ def login():
 
 def list_folder(path):
     try:
+        log(f"\n📂 Listing folder: {path}")
         resp = session.get(f"{ABOT_URL}/files", params={"path": path})
+        log(f"🔎 Status: {resp.status_code}")
+        log(f"📨 Response: {resp.text}")
         if resp.status_code == 200:
             return resp.json().get("data", [])
         else:
@@ -39,6 +42,7 @@ def list_folder(path):
     except Exception as e:
         log(f"⚠️ Failed to list {path}: {e}")
         return []
+
 
 def find_feature_files(path="featureFiles"):
     all_features = []
