@@ -11,8 +11,8 @@ STATUS_URL = f"{ABOT_BASE_URL}/execution_status"
 SUMMARY_URL = f"{ABOT_BASE_URL}/artifacts/execFeatureSummary"
 LOG_URL = f"{ABOT_BASE_URL}/files"
 
-USERNAME = "ajeesh@cazelabs.com"
-PASSWORD = "ajeesh1234"
+USERNAME = "admin"
+PASSWORD = "admin123"
 
 session = requests.Session()
 headers = {}
