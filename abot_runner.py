@@ -47,7 +47,7 @@ def execute_feature():
     payload = {
         "params": {
             "tag": FEATURE_TAG,
-            "env": "default",       # Adjust based on your config
+            "env": "default",
             "parallel": False,
             "video": False
         }
@@ -66,19 +66,18 @@ def poll_status():
         print("🧪 Raw /execution_status response:")
         print(json.dumps(json_data, indent=2))
 
-        
-      if "executing" in json_data:
-         exec_status = json_data["executing"]
-         if not exec_status.get("status", False):
-            print("✅ Execution completed.")
-            return
+        if "executing" in json_data:
+            exec_status = json_data["executing"]
+            if not exec_status.get("status", False):
+                print("✅ Execution completed.")
+                return
+            else:
+                print("🟡 Still running... waiting 10s")
         else:
-           print("🟡 Still running... waiting 10s")
-     else:
-         print("⚠️ Unexpected execution_status structure, retrying...")
+            print("⚠️ Unexpected execution_status structure, retrying...")
 
-        
         time.sleep(10)
+
 
 
 def get_artifact_folder():
