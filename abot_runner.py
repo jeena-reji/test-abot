@@ -10,7 +10,7 @@ SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary"
 
 USERNAME = "ajeesh@cazelabs.com"
 PASSWORD = "ajeesh1234"
-FEATURE_TAG = "000-local-commands.feature"
+FEATURE_TAG = "3GPP-23401-4G"
 CONFIG_FILE = "/etc/rebaca-test-suite/config/admin/ABotConfig.properties"
 
 headers = {"Content-Type": "application/json"}
@@ -104,15 +104,14 @@ def check_result(summary):
         sys.exit(1)
 
     result = summary["feature_summary"]["result"]
-    
-    if result == "pass":
-        print("✅ Test Passed.")
-    elif result == "fail":
-        print("❌ Test Failed.")
+    failed = result["totalScenarios"]["totalScenariosFailed"]["totalScenariosFailedNumber"]
+    if failed > 0:
+        print(f"❌ Test failed: {failed} scenario(s) failed.")
         sys.exit(1)
     else:
-        print(f"⚠️ Unknown result: {result}")
-        sys.exit(1)
+        print("✅ All test scenarios passed.")
+
+
 
 
 if __name__ == "__main__":
@@ -121,5 +120,8 @@ if __name__ == "__main__":
     execute_feature()
     poll_status()
     folder = get_artifact_folder()
+    if not folder:
+        print("❌ No artifact folder returned. Cannot fetch summary.")
+        sys.exit(1)
     summary = get_summary(folder)
     check_result(summary)
