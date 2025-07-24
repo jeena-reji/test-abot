@@ -54,12 +54,21 @@ def poll_status():
     while True:
         res = requests.get(STATUS_URL, headers=headers)
         res.raise_for_status()
-        status = res.json()["executing"]
-        if not status["executing"][0]["is_executing"]:
-            print("✅ Execution completed.")
-            return
-        print("🟡 Still running... waiting 10s")
+        json_data = res.json()
+        
+        # Make sure keys exist
+        if "executing" in json_data and "executing" in json_data["executing"]:
+            exec_list = json_data["executing"]["executing"]
+            if exec_list and not exec_list[0].get("is_executing", False):
+                print("✅ Execution completed.")
+                return
+            else:
+                print("🟡 Still running... waiting 10s")
+        else:
+            print("⚠️ Unexpected execution_status structure, retrying...")
+        
         time.sleep(10)
+
 
 def get_artifact_folder():
     res = requests.get(ARTIFACT_URL, headers=headers)
