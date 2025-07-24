@@ -26,13 +26,12 @@ def login():
     response.raise_for_status()
     json_data = response.json()
 
-    token = json_data.get("token") or json_data.get("userToken") or json_data.get("access_token")
+     token = json_data.get("data", {}).get("token")
     if not token:
-        raise Exception("❌ Login failed, token missing.")
+        raise Exception("❌ Login failed, token missing in 'data'.")
     headers["Authorization"] = f"Bearer {token}"
     print("✅ Logged in successfully.")
     return token
-
 def fetch_features():
     print("📋 Fetching all feature files...")
     response = session.get(FEATURE_LIST_URL, headers=headers)
