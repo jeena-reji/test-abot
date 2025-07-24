@@ -1,13 +1,13 @@
-name: ABot Full Test Execution
+name: ABot List Available Tags
 
 on:
   workflow_dispatch:
 
 jobs:
-  run-abot:
+  list-abot-tags:
     runs-on: [self-hosted]
     steps:
-      - name:  Checkout code
+      - name: Checkout code
         uses: actions/checkout@v3
 
       - name: 🛠 Set up Python
@@ -15,11 +15,11 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name:  Install dependencies
+      - name: Install dependencies
         run: pip install requests
 
-      - name:  Run ABot full test execution
-        run: python abot_runner.py
+      - name: 🔍 List available ABot tags
+        run: python abot_runner.py --list-tags
 
       - name:  Upload ABot Summary
         uses: actions/upload-artifact@v4
