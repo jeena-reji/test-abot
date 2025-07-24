@@ -22,7 +22,7 @@ def login():
         token = data.get("token")
         if token:
             session.headers.update({"Authorization": f"Bearer {token}"})
-            log(f"🪪 Token set: {session.headers.get('Authorization')}") 
+            log(f"🪪 Token set: {session.headers.get('Authorization')}")
             log("✅ Logged in successfully.")
         else:
             log("❌ Login failed, token missing.")
@@ -35,9 +35,7 @@ def list_folder(path):
     try:
         log(f"\n📂 Listing folder: {path}")
         resp = session.get(f"{ABOT_URL}/files", params={"path": path, "include_file": "true"})
-
         log(f"🔎 Status: {resp.status_code}")
-        log(f"📨 Response: {resp.text}") 
         if resp.status_code == 200:
             return resp.json().get("data", [])
         else:
@@ -90,17 +88,18 @@ def main():
     login()
     log("📁 Discovering all .feature files recursively...")
 
+    # ✅ Correct root path used: "otherFeatureFile/"
     base_paths = [
-        "featureFiles/3GPP-23401-4G",
-        "featureFiles/3GPP-23502-5G",
-        "featureFiles/3GPP-38401-5G-ORAN",
-        "featureFiles/Conformance",
-        "featureFiles/IMS",
-        "featureFiles/IOS_MCN_5GC_Pre_Release0.1.2",
-        "featureFiles/IOS_MCN_5GC_Release0.0.10",
-        "featureFiles/IOS_MCN_5GC_UPDATED",
-        "featureFiles/Load_for_10_gNB",
-        "featureFiles/System_Tests"
+        "otherFeatureFile/3GPP-23401-4G",
+        "otherFeatureFile/3GPP-23502-5G",
+        "otherFeatureFile/3GPP-38401-5G-ORAN",
+        "otherFeatureFile/Conformance",
+        "otherFeatureFile/IMS",
+        "otherFeatureFile/IOS_MCN_5GC_Pre_Release0.1.2",
+        "otherFeatureFile/IOS_MCN_5GC_Release0.0.10",
+        "otherFeatureFile/IOS_MCN_5GC_UPDATED",
+        "otherFeatureFile/Load_for_10_gNB",
+        "otherFeatureFile/System_Tests"
     ]
 
     features = []
@@ -112,7 +111,7 @@ def main():
         return
 
     log(f"✅ Found {len(features)} feature files.")
-    
+
     failed = []
     for feature in features:
         exec_id = execute_feature(feature)
