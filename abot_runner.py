@@ -33,7 +33,8 @@ def login():
 def list_folder(path):
     try:
         log(f"\n📂 Listing folder: {path}")
-        resp = session.get(f"{ABOT_URL}/files", params={"path": path})
+        resp = session.get(f"{ABOT_URL}/files", params={"path": path, "include_file": "true"})
+
         log(f"🔎 Status: {resp.status_code}")
         if resp.status_code == 200:
             return resp.json().get("data", [])
