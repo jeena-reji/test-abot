@@ -98,13 +98,22 @@ def get_summary(folder):
     return summary
 
 def check_result(summary):
+    if "feature_summary" not in summary:
+        print("❌ Error: 'feature_summary' not present in summary.")
+        print("Full summary response:", summary)
+        sys.exit(1)
+
     result = summary["feature_summary"]["result"]
-    failed = result["totalScenarios"]["totalScenariosFailed"]["totalScenariosFailedNumber"]
-    if failed > 0:
-        print(f"❌ Test failed: {failed} scenario(s) failed.")
+    
+    if result == "pass":
+        print("✅ Test Passed.")
+    elif result == "fail":
+        print("❌ Test Failed.")
         sys.exit(1)
     else:
-        print("✅ All test scenarios passed.")
+        print(f"⚠️ Unknown result: {result}")
+        sys.exit(1)
+
 
 if __name__ == "__main__":
     login()
