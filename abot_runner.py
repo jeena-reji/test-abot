@@ -10,7 +10,7 @@ SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary"
 
 USERNAME = "ajeesh@cazelabs.com"
 PASSWORD = "ajeesh1234"
-FEATURE_TAG = "ssh-tests"
+FEATURE_TAG = "IOS_MCN_5GC_Pre_Release0.1.2"
 CONFIG_FILE = "/etc/rebaca-test-suite/config/admin/ABotConfig.properties"
 
 headers = {"Content-Type": "application/json"}
@@ -44,18 +44,10 @@ def update_config():
 
 def execute_feature():
     print(f"🚀 Executing feature tag: {FEATURE_TAG}")
-    payload = {
-        "params": {
-            "tag": FEATURE_TAG,
-            "env": "default",
-            "parallel": False,
-            "video": False
-        }
-    }
+    payload = {"params": FEATURE_TAG}
     res = requests.post(EXECUTE_URL, headers=headers, json=payload)
     res.raise_for_status()
     print("▶️ Test started.")
-
 
 def poll_status():
     print("⏳ Polling execution status...")
@@ -66,18 +58,19 @@ def poll_status():
         print("🧪 Raw /execution_status response:")
         print(json.dumps(json_data, indent=2))
 
-        if "executing" in json_data:
-            exec_status = json_data["executing"]
-            if not exec_status.get("status", False):
+        
+        # Make sure keys exist
+        if "executing" in json_data and "executing" in json_data["executing"]:
+            exec_list = json_data["executing"]["executing"]
+            if exec_list and not exec_list[0].get("is_executing", False):
                 print("✅ Execution completed.")
                 return
             else:
                 print("🟡 Still running... waiting 10s")
         else:
             print("⚠️ Unexpected execution_status structure, retrying...")
-
+        
         time.sleep(10)
-
 
 
 def get_artifact_folder():
@@ -98,11 +91,6 @@ def get_summary(folder):
     return summary
 
 def check_result(summary):
-    if "feature_summary" not in summary:
-        print("❌ Error: 'feature_summary' not present in summary.")
-        print("Full summary response:", summary)
-        sys.exit(1)
-
     result = summary["feature_summary"]["result"]
     failed = result["totalScenarios"]["totalScenariosFailed"]["totalScenariosFailedNumber"]
     if failed > 0:
@@ -111,17 +99,11 @@ def check_result(summary):
     else:
         print("✅ All test scenarios passed.")
 
-
-
-
 if __name__ == "__main__":
     login()
     update_config()
     execute_feature()
     poll_status()
     folder = get_artifact_folder()
-    if not folder:
-        print("❌ No artifact folder returned. Cannot fetch summary.")
-        sys.exit(1)
     summary = get_summary(folder)
     check_result(summary)
