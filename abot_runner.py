@@ -22,6 +22,7 @@ def login():
         token = data.get("token")
         if token:
             session.headers.update({"Authorization": f"Bearer {token}"})
+            log(f"🪪 Token set: {session.headers.get('Authorization')}") 
             log("✅ Logged in successfully.")
         else:
             log("❌ Login failed, token missing.")
@@ -36,6 +37,7 @@ def list_folder(path):
         resp = session.get(f"{ABOT_URL}/files", params={"path": path, "include_file": "true"})
 
         log(f"🔎 Status: {resp.status_code}")
+        log(f"📨 Response: {resp.text}") 
         if resp.status_code == 200:
             return resp.json().get("data", [])
         else:
