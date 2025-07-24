@@ -10,7 +10,7 @@ SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary"
 
 USERNAME = "ajeesh@cazelabs.com"
 PASSWORD = "ajeesh1234"
-FEATURE_TAG = "3GPP-23401-4G"
+FEATURE_TAG = "ssh-tests"
 CONFIG_FILE = "/etc/rebaca-test-suite/config/admin/ABotConfig.properties"
 
 headers = {"Content-Type": "application/json"}
