@@ -1,0 +1,34 @@
+name: ABot Full Test Execution
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-abot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v3
+
+      - name: 🛠️ Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: 📦 Install dependencies
+        run: pip install requests
+
+      - name: 🚀 Run ABot full test execution
+        run: python abot_runner.py
+
+      - name: 📤 Upload ABot Summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: abot-summary
+          path: abot_summary.json
+
+      - name: 📤 Upload ABot Logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: abot-log
+          path: abot_log.log
