@@ -10,7 +10,7 @@ SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary"
 
 USERNAME = "ajeesh@cazelabs.com"
 PASSWORD = "ajeesh1234"
-FEATURE_TAG = "IOS_MCN_5GC_Release0.0.10"
+FEATURE_TAG = "5GS_IMS_Voice_Call_Qos_Flow_VoNR_Parallel.feature"
 CONFIG_FILE = "/etc/rebaca-test-suite/config/admin/ABotConfig.properties"
 
 headers = {"Content-Type": "application/json"}
