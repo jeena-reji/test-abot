@@ -44,7 +44,7 @@ def list_folder(path):
         return []
 
 
-def find_feature_files(path="featureFiles"):
+def find_feature_files(path=""):
     all_features = []
     stack = [path]
     while stack:
