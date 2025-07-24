@@ -1,117 +1,109 @@
 import requests
 import time
 import os
-from urllib.parse import quote
 
-# ABot configuration
-ABOT_HOST = "http://10.176.27.73/abotrest"
-LOGIN_URL = f"{ABOT_HOST}/abot/api/v5/login"
-FEATURE_PATH_API = f"{ABOT_HOST}/abot/api/v5/feature_files_path"
-FILES_API = f"{ABOT_HOST}/abot/api/v5/files"
-EXECUTE_FEATURE_API = f"{ABOT_HOST}/abot/api/v5/feature_files/execute"
-EXECUTION_STATUS_API = f"{ABOT_HOST}/abot/api/v5/execution_status"
-EXEC_SUMMARY_API = f"{ABOT_HOST}/abot/api/v5/artifacts/execFeatureSummary"
-
-# Credentials
-USERNAME = "ajeesh@cazelabs.com"
+ABOT_URL = "http://10.176.27.73/abotrest/abot/api/v5"
+EMAIL = "ajeesh@cazelabs.com"
 PASSWORD = "ajeesh1234"
 
 session = requests.Session()
-headers = {"Content-Type": "application/json"}
+token = None
 
+def log(msg): print(msg)
 
 def login():
-    print("🔐 Logging in to ABot...")
-    response = session.post(LOGIN_URL, json={"email": USERNAME, "password": PASSWORD})
-    print(f"🔎 Status: {response.status_code}")
-    print(f"📨 Response: {response.text}")
-    response.raise_for_status()
-    json_data = response.json()
-    token = json_data.get("data", {}).get("token")
-    if not token:
-        raise Exception("❌ Login failed, token missing in 'data'.")
-    headers["Authorization"] = f"Bearer {token}"
-    print("✅ Logged in successfully.")
+    global token
+    log("\n🔐 Logging in to ABot...")
+    resp = session.post(f"{ABOT_URL}/login", json={"email": EMAIL, "password": PASSWORD})
+    log(f"🔎 Status: {resp.status_code}")
+    try:
+        data = resp.json().get("data", {})
+        token = data.get("token")
+        if token:
+            session.headers.update({"Authorization": f"Bearer {token}"})
+            log("✅ Logged in successfully.")
+        else:
+            log("❌ Login failed, token missing.")
+            exit(1)
+    except Exception as e:
+        log(f"❌ Login failed: {e}")
+        exit(1)
 
+def list_folder(path):
+    try:
+        resp = session.get(f"{ABOT_URL}/files", params={"path": path})
+        if resp.status_code == 200:
+            return resp.json().get("data", [])
+        else:
+            return []
+    except Exception as e:
+        log(f"⚠️ Failed to list {path}: {e}")
+        return []
 
-def list_folders(search_path=""):
-    response = session.get(FEATURE_PATH_API, headers=headers, params={"search_path": search_path})
-    response.raise_for_status()
-    data = response.json()
-    return data.get("data", [])
+def find_feature_files(path="featureFiles"):
+    all_features = []
+    stack = [path]
+    while stack:
+        current = stack.pop()
+        items = list_folder(current)
+        for item in items:
+            full_path = os.path.join(current, item["name"])
+            if item["is_file"] and full_path.endswith(".feature"):
+                all_features.append(full_path)
+            elif not item["is_file"]:
+                stack.append(full_path)
+    return all_features
 
+def execute_feature(file_path):
+    resp = session.post(f"{ABOT_URL}/feature_files/execute", json={"path": file_path})
+    if resp.status_code == 200:
+        exec_id = resp.json().get("data", {}).get("execution_id", "")
+        log(f"🚀 Triggered: {file_path} → Execution ID: {exec_id}")
+        return exec_id
+    else:
+        log(f"❌ Failed to execute {file_path}")
+        return None
 
-def get_feature_files(path):
-    response = session.get(FILES_API, headers=headers, params={"path": path})
-    response.raise_for_status()
-    data = response.json()
-    files = data.get("data", [])
-    features = []
-    for f in files:
-        if f.endswith(".feature"):
-            features.append(f"{path}/{f}")
-    return features
-
-
-def discover_all_feature_files(root=""):
-    print("📁 Discovering all .feature files recursively...")
-    feature_files = []
-    folders = [root]
-    while folders:
-        current = folders.pop()
-        subfolders = list_folders(current)
-        for sub in subfolders:
-            folders.append(f"{current}/{sub}" if current else sub)
-        feature_files.extend(get_feature_files(current))
-    print(f"✅ Found {len(feature_files)} feature files.")
-    return feature_files
-
-
-def execute_feature(feature_path):
-    print(f"🚀 Executing: {feature_path}")
-    response = session.post(EXECUTE_FEATURE_API, headers=headers, json={"feature_file_tag": feature_path})
-    response.raise_for_status()
-    print("⏳ Waiting 15s for execution...")
-    time.sleep(15)
-
-
-def get_execution_status():
-    response = session.get(EXECUTION_STATUS_API, headers=headers)
-    response.raise_for_status()
-    return response.json()
-
-
-def get_summary():
-    print("📦 Fetching execution summary...")
-    response = session.get(EXEC_SUMMARY_API, headers=headers, params={"foldername": "", "page": 1, "limit": 9999})
-    response.raise_for_status()
-    return response.json()
-
+def wait_for_completion(exec_id, timeout=600):
+    start = time.time()
+    while time.time() - start < timeout:
+        time.sleep(5)
+        resp = session.get(f"{ABOT_URL}/execution_status")
+        data = resp.json().get("data", [])
+        for item in data:
+            if item.get("execution_id") == exec_id:
+                status = item.get("status")
+                if status in ["PASS", "FAIL"]:
+                    return status
+    return "TIMEOUT"
 
 def main():
     login()
-    feature_files = discover_all_feature_files()
-    if not feature_files:
-        print("⚠️ No feature files found.")
+    log("📁 Discovering all .feature files recursively...")
+    features = find_feature_files()
+    if not features:
+        log("⚠️ No feature files found.")
         return
+    log(f"✅ Found {len(features)} feature files.")
+    
+    failed = []
+    for feature in features:
+        exec_id = execute_feature(feature)
+        if not exec_id:
+            failed.append(feature)
+            continue
+        status = wait_for_completion(exec_id)
+        log(f"🔄 {feature} → {status}")
+        if status != "PASS":
+            failed.append(feature)
 
-    failures = []
-    for feature in feature_files:
-        try:
-            execute_feature(feature)
-        except Exception as e:
-            print(f"❌ Failed to execute {feature}: {e}")
-            failures.append(feature)
-
-    print("🧾 Summary:")
-    if failures:
-        print("❌ Some tests failed:")
-        for f in failures:
-            print(f"  - {f}")
+    if failed:
+        log("\n❌ Some feature files failed:")
+        for f in failed:
+            log(f"- {f}")
         exit(1)
     else:
-        print("✅ All features passed.")
-
+        log("\n✅ All feature files passed.")
 
 if __name__ == "__main__":
     main()
