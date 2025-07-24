@@ -18,8 +18,8 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: 🔍 List available ABot tags
-        run: python abot_runner.py --list-tags
+      - name: Run ABot tags
+        run: python abot_runner.py 
 
       - name:  Upload ABot Summary
         uses: actions/upload-artifact@v4
