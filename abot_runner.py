@@ -12,7 +12,7 @@ SUMMARY_URL = f"{ABOT_BASE_URL}/artifacts/execFeatureSummary"
 LOG_URL = f"{ABOT_BASE_URL}/files"
 
 USERNAME = "admin"
-PASSWORD = "admin123"
+PASSWORD = "admin1234"
 
 session = requests.Session()
 headers = {}
