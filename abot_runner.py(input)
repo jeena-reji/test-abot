@@ -75,6 +75,23 @@ def poll_status():
         
         time.sleep(10)
 
+
+def download_and_print_log(folder):
+    log_url = f"{ABOT_URL}/abot/api/v5/artifacts/logs"
+    params = {"foldername": folder}
+    print("📥 Downloading ABot execution log...")
+    res = requests.get(log_url, headers=headers, params=params)
+    res.raise_for_status()
+
+    log_text = res.text
+    print("📜 ABot Execution Log:\n")
+    print(log_text)
+
+    # Save to file as well
+    with open("abot_log.log", "w") as f:
+        f.write(log_text)
+
+
 def get_artifact_folder():
     res = requests.get(ARTIFACT_URL, headers=headers)
     res.raise_for_status()
@@ -159,6 +176,7 @@ if __name__ == "__main__":
         print(f"\n===== Running for TAG: {tag} =====")
         execute_feature(tag)
         poll_status()
+        download_and_print_log(folder) 
         folder = get_artifact_folder()
         summary = get_summary(folder)
         generate_reports(summary, tag)
