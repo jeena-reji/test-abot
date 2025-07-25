@@ -1,4 +1,4 @@
-import requests, time, sys, json
+import requests, time, sys, json ,os
 
 ABOT_URL = "http://10.176.27.73/abotrest"
 LOGIN_URL = f"{ABOT_URL}/abot/api/v5/login"
@@ -100,6 +100,22 @@ def check_result(summary):
     else:
         print("✅ All test scenarios passed.")
 
+def download_and_print_log(folder):
+    log_url = f"{ABOT_URL}/abot/api/v5/artifacts/logs"
+    params = {"foldername": folder}
+    print("📥 Downloading ABot execution log...")
+    res = requests.get(log_url, headers=headers, params=params)
+    res.raise_for_status()
+
+    log_text = res.text
+    print("📜 ABot Execution Log:\n")
+    print(log_text)
+
+    # Save to file as well
+    with open("abot_log.log", "w") as f:
+        f.write(log_text)
+
+
 if __name__ == "__main__":
     login()
     update_config()
@@ -108,3 +124,4 @@ if __name__ == "__main__":
     folder = get_artifact_folder()
     summary = get_summary(folder)
     check_result(summary)
+    download_and_print_log(folder)
