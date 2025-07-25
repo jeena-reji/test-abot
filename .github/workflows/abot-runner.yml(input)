@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       feature_tag:
-        description: 'Feature Tag to Execute (e.g., @5gs-attach-basic)'
+        description: "Enter ABot feature tag(s) (comma-separated)"
         required: true
         default: '@your-feature-tag'
 
@@ -30,20 +30,8 @@ jobs:
           python abot_runner.py "${{ github.event.inputs.feature_tag }}"
           echo "✅ ABot Execution Completed."
 
-      - name: 📄 Upload ABot Summary (JSON)
+      - name: 📄 Upload All Results Folder
         uses: actions/upload-artifact@v4
         with:
-          name: abot-summary
-          path: results/*.json
-
-      - name: 📄 Upload ABot Logs (LOG)
-        uses: actions/upload-artifact@v4
-        with:
-          name: abot-log
-          path: abot_log.log
-
-      - name: 📄 Upload ABot HTML Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: abot-html-report
-          path: results/*.html
+          name: abot-results
+          path: results/
