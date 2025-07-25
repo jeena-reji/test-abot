@@ -1,0 +1,49 @@
+name: ABot Feature Tag Execution
+
+on:
+  workflow_dispatch:
+    inputs:
+      feature_tag:
+        description: 'Feature Tag to Execute (e.g., @5gs-attach-basic)'
+        required: true
+        default: '@your-feature-tag'
+
+jobs:
+  run-abot-tests:
+    runs-on: [self-hosted]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: 🛠 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run ABot Tests
+        run: |
+          echo "🔄 Starting ABot Execution for tag: ${{ github.event.inputs.feature_tag }}"
+          python abot_runner.py "${{ github.event.inputs.feature_tag }}"
+          echo "✅ ABot Execution Completed."
+
+      - name: 📄 Upload ABot Summary (JSON)
+        uses: actions/upload-artifact@v4
+        with:
+          name: abot-summary
+          path: results/*.json
+
+      - name: 📄 Upload ABot Logs (LOG)
+        uses: actions/upload-artifact@v4
+        with:
+          name: abot-log
+          path: abot_log.log
+
+      - name: 📄 Upload ABot HTML Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: abot-html-report
+          path: results/*.html
