@@ -154,7 +154,7 @@ def generate_reports(summary, tag):
         </body></html>
         """)
 
-    print("📄 Reports generated in /results folder:")
+    print("Reports generated in /results folder:")
     print(f"- Summary: {base_name}_summary.txt")
     print(f"- JSON:    {base_name}_result.json")
     print(f"- HTML:    {base_name}_report.html")
