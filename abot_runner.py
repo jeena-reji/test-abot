@@ -17,17 +17,17 @@ CONFIG_FILE = "/etc/rebaca-test-suite/config/admin/ABotConfig.properties"
 headers = {"Content-Type": "application/json"}
 
 def login():
-    print("🔐 Logging in...")
+    print("Logging in...")
     payload = {"email": USERNAME, "password": PASSWORD, "expires": False}
     res = requests.post(LOGIN_URL, json=payload)
     res.raise_for_status()
     token = res.json()["data"]["token"]
     headers["Authorization"] = f"Bearer {token}"
-    print("✅ Login successful.")
+    print("Login successful.")
     return token
 
 def update_config():
-    print("⚙️ Updating config...")
+    print("Updating config...")
     payload = {
         "uncomment": [
             "ABOT.SUTVARS=file:abot-emulated/sut-vars/default.properties"
@@ -41,22 +41,22 @@ def update_config():
     }
     res = requests.post(CONFIG_URL, headers=headers, json=payload, params={"filename": CONFIG_FILE})
     res.raise_for_status()
-    print("✅ Config updated.")
+    print("Config updated.")
 
 def execute_feature():
-    print(f"🚀 Executing feature tag: {FEATURE_TAG}")
+    print(f"Executing feature tag: {FEATURE_TAG}")
     payload = {"params": FEATURE_TAG}
     res = requests.post(EXECUTE_URL, headers=headers, json=payload)
     res.raise_for_status()
-    print("▶️ Test started.")
+    print("Test started.")
 
 def poll_status():
-    print("⏳ Polling execution status...")
+    print("Polling execution status...")
     while True:
         res = requests.get(STATUS_URL, headers=headers)
         res.raise_for_status()
         json_data = res.json()
-        print("🧪 Raw /execution_status response:")
+        print("Raw /execution_status response:")
         print(json.dumps(json_data, indent=2))
 
         
@@ -64,12 +64,12 @@ def poll_status():
         if "executing" in json_data and "executing" in json_data["executing"]:
             exec_list = json_data["executing"]["executing"]
             if exec_list and not exec_list[0].get("is_executing", False):
-                print("✅ Execution completed.")
+                print("Execution completed.")
                 return
             else:
-                print("🟡 Still running... waiting 10s")
+                print("Still running... waiting 10s")
         else:
-            print("⚠️ Unexpected execution_status structure, retrying...")
+            print("Unexpected execution_status structure, retrying...")
         
         time.sleep(10)
 
@@ -78,11 +78,11 @@ def get_artifact_folder():
     res = requests.get(ARTIFACT_URL, headers=headers)
     res.raise_for_status()
     folder = res.json()["data"]["latest_artifact_timestamp"]
-    print(f"📁 Latest artifact folder: {folder}")
+    print(f"Latest artifact folder: {folder}")
     return folder
 
 def get_summary(folder):
-    print("📊 Fetching execution summary...")
+    print("Fetching execution summary...")
     params = {"foldername": folder, "page": 1, "limit": 9998}
     res = requests.get(SUMMARY_URL, headers=headers, params=params)
     res.raise_for_status()
@@ -95,20 +95,20 @@ def check_result(summary):
     result = summary["feature_summary"]["result"]
     failed = result["totalScenarios"]["totalScenariosFailed"]["totalScenariosFailedNumber"]
     if failed > 0:
-        print(f"❌ Test failed: {failed} scenario(s) failed.")
+        print(f"Test failed: {failed} scenario(s) failed.")
         sys.exit(1)
     else:
-        print("✅ All test scenarios passed.")
+        print("All test scenarios passed.")
 
 def download_and_print_log(folder):
     log_url = f"{ABOT_URL}/abot/api/v5/artifacts/logs"
     params = {"foldername": folder}
-    print("📥 Downloading ABot execution log...")
+    print("Downloading ABot execution log...")
     res = requests.get(log_url, headers=headers, params=params)
     res.raise_for_status()
 
     log_text = res.text
-    print("📜 ABot Execution Log:\n")
+    print("ABot Execution Log:\n")
     print(log_text)
 
     # Save to file as well
