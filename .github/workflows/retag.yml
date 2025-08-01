@@ -12,7 +12,7 @@ jobs:
 
     steps:
     - name: Log in to GHCR
-      run: echo "${{ secrets.GHUSER }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      run: echo "${{ secrets.GHCRPASS }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
     - name: Pull existing image (rc1)
       run: docker pull ghcr.io/ios-mcn-ims/cscf:release-0.1.3.rc1
