@@ -1,0 +1,43 @@
+name: Retag GHCR Docker Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      org:
+        description: 'GitHub org/user (e.g., jeena-reji)'
+        required: true
+      repo:
+        description: 'Image name (e.g., n5)'
+        required: true
+      from_tag:
+        description: 'Existing tag to pull (e.g., release-1.2.0)'
+        required: true
+      to_tag:
+        description: 'New tag to push (e.g., release-0.2.1)'
+        required: true
+
+jobs:
+  retag:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
+    steps:
+    - name: Log in to GHCR
+      run: echo "${{ secrets.GHPASS }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+    - name: Pull image
+      run: |
+        echo "Pulling ghcr.io/${{ inputs.org }}/${{ inputs.repo }}:${{ inputs.from_tag }}"
+        docker pull ghcr.io/${{ inputs.org }}/${{ inputs.repo }}:${{ inputs.from_tag }}
+
+    - name: Retag image
+      run: |
+        echo "Tagging as ghcr.io/${{ inputs.org }}/${{ inputs.repo }}:${{ inputs.to_tag }}"
+        docker tag ghcr.io/${{ inputs.org }}/${{ inputs.repo }}:${{ inputs.from_tag }} \
+                   ghcr.io/${{ inputs.org }}/${{ inputs.repo }}:${{ inputs.to_tag }}
+
+    - name: Push new tag
+      run: |
+        docker push ghcr.io/${{ inputs.org }}/${{ inputs.repo }}:${{ inputs.to_tag }}
