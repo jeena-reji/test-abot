@@ -1,5 +1,4 @@
-import requests, time, sys, json, os,re
-from html import escape
+import requests, time, sys, json ,os
 
 ABOT_URL = "http://10.176.27.73/abotrest"
 LOGIN_URL = f"{ABOT_URL}/abot/api/v5/login"
@@ -12,6 +11,7 @@ SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary"
 USERNAME = "ajeesh@cazelabs.com"
 PASSWORD = "ajeesh1234"
 FEATURE_TAG = "5gs-initial-registration-sdcore-0.0.10"
+
 CONFIG_FILE = "/etc/rebaca-test-suite/config/admin/ABotConfig.properties"
 
 headers = {"Content-Type": "application/json"}
@@ -24,6 +24,7 @@ def login():
     token = res.json()["data"]["token"]
     headers["Authorization"] = f"Bearer {token}"
     print("Login successful.")
+    return token
 
 def update_config():
     print("Updating config...")
@@ -57,6 +58,9 @@ def poll_status():
         json_data = res.json()
         print("Raw /execution_status response:")
         print(json.dumps(json_data, indent=2))
+
+        
+        # Make sure keys exist
         if "executing" in json_data and "executing" in json_data["executing"]:
             exec_list = json_data["executing"]["executing"]
             if exec_list and not exec_list[0].get("is_executing", False):
@@ -66,7 +70,9 @@ def poll_status():
                 print("Still running... waiting 10s")
         else:
             print("Unexpected execution_status structure, retrying...")
+        
         time.sleep(10)
+
 
 def get_artifact_folder():
     res = requests.get(ARTIFACT_URL, headers=headers)
@@ -85,78 +91,29 @@ def get_summary(folder):
         json.dump(summary, f, indent=2)
     return summary
 
+def check_result(summary):
+    result = summary["feature_summary"]["result"]
+    failed = result["totalScenarios"]["totalScenariosFailed"]["totalScenariosFailedNumber"]
+    if failed > 0:
+        print(f"Test failed: {failed} scenario(s) failed.")
+        sys.exit(1)
+    else:
+        print("All test scenarios passed.")
 
-def generate_reports(summary, log_text):
-    error_txt = []
-    html_lines = [
-        "<html><head><title>ABot Test Summary</title></head><body>",
-        "<h2>ABot Execution Summary</h2>",
-        "<table border='1' cellpadding='5'><tr><th>Feature</th><th>Scenario</th><th>Status</th><th>Error Details</th></tr>"
-    ]
-    json_output = []
-
-    scenarios = summary.get("feature_summary", {}).get("result", {}).get("data", [])
-    for feature in scenarios:
-        fname = feature.get("featureName", "Unknown")
-        sname = feature.get("scenarioName", "Unnamed")
-        status = feature.get("features", {}).get("status", "unknown")
-        failed_steps = feature.get("steps", {}).get("failed", 0)
-
-        # Extract detailed error logs for this scenario
-        pattern = re.compile(re.escape(sname), re.IGNORECASE)
-        lines = [line for line in log_text.splitlines() if pattern.search(line) and "FAIL" in line.upper()]
-        detail = "<br>".join(escape(line.strip()) for line in lines) or f"{failed_steps} step(s) failed (No detailed log found)"
-
-        # HTML
-        html_lines.append(f"<tr><td>{escape(fname)}</td><td>{escape(sname)}</td><td>{escape(status)}</td><td>{detail}</td></tr>")
-
-        # JSON
-        json_output.append({
-            "feature": fname,
-            "scenario": sname,
-            "status": status,
-            "failed_steps": failed_steps,
-            "error_details": lines or ["No detailed log found"]
-        })
-
-        # TXT summary (optional)
-        if status == "failed":
-            error_txt.append(f"Feature: {fname}\nScenario: {sname}\nStatus: FAILED\n" + "\n".join(lines or ["No details found"]) + "\n")
-
-    html_lines.append("</table></body></html>")
-
-    with open("abot_summary.html", "w") as f:
-        f.write("\n".join(html_lines))
-
-    with open("abot_summary.json", "w") as f:
-        json.dump(json_output, f, indent=2)
-
-    with open("abot_error.txt", "w") as f:
-        f.write("\n".join(error_txt) if error_txt else "✅ All scenarios passed successfully.")
-
-
-
-def download_and_print_log(folder, retries=3, delay=10):
+def download_and_print_log(folder):
     log_url = f"{ABOT_URL}/abot/api/v5/artifacts/logs"
     params = {"foldername": folder}
     print("Downloading ABot execution log...")
+    res = requests.get(log_url, headers=headers, params=params)
+    res.raise_for_status()
 
-    for attempt in range(1, retries + 1):
-        res = requests.get(log_url, headers=headers, params=params)
-        if res.status_code == 200:
-            log_text = res.text
-            print("ABot Execution Log:\n")
-            print(log_text)
-            with open("abot_log.log", "w") as f:
-                f.write(log_text)
-            return
-        else:
-            print(f"Log not ready yet (Attempt {attempt}/{retries}). Retrying in {delay}s...")
-            time.sleep(delay)
+    log_text = res.text
+    print("ABot Execution Log:\n")
+    print(log_text)
 
-    print(f"❌ Failed to download log after {retries} retries.")
+    # Save to file as well
     with open("abot_log.log", "w") as f:
-        f.write("Log download failed or not available.")
+        f.write(log_text)
 
 
 if __name__ == "__main__":
@@ -166,11 +123,5 @@ if __name__ == "__main__":
     poll_status()
     folder = get_artifact_folder()
     summary = get_summary(folder)
-    download_and_print_log(folder)
-
-    with open("abot_log.log", "r") as logf:
-        log_text = logf.read()
-
-    generate_reports(summary, log_text)
     check_result(summary)
-
+    download_and_print_log(folder)
