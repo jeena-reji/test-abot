@@ -27,7 +27,8 @@ jobs:
         with:
           name: abot-artifacts
           path: |
-            abot_log.log
-            abot_summary.html
-            abot_summary.json
-            abot_error.txt
+            ./abot_log.log
+            ./abot_summary.html
+            ./abot_summary.json
+            ./abot_error.txt
+
