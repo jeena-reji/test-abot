@@ -1,4 +1,4 @@
-import requests, time, sys, json, os
+import requests, time, sys, json, os,re
 from html import escape
 
 ABOT_URL = "http://10.176.27.73/abotrest"
@@ -85,13 +85,15 @@ def get_summary(folder):
         json.dump(summary, f, indent=2)
     return summary
 
-def generate_reports(summary):
+
+def generate_reports(summary, log_text):
     error_txt = []
     html_lines = [
         "<html><head><title>ABot Test Summary</title></head><body>",
         "<h2>ABot Execution Summary</h2>",
         "<table border='1' cellpadding='5'><tr><th>Feature</th><th>Scenario</th><th>Status</th><th>Error Details</th></tr>"
     ]
+    json_output = []
 
     scenarios = summary.get("feature_summary", {}).get("result", {}).get("data", [])
     for feature in scenarios:
@@ -99,24 +101,39 @@ def generate_reports(summary):
         sname = feature.get("scenarioName", "Unnamed")
         status = feature.get("features", {}).get("status", "unknown")
         failed_steps = feature.get("steps", {}).get("failed", 0)
-        step_msgs = [f"{failed_steps} step(s) failed (Details not provided by API)"] if failed_steps else []
 
-        detail = "<br>".join(escape(m) for m in step_msgs)
+        # Extract detailed error logs for this scenario
+        pattern = re.compile(re.escape(sname), re.IGNORECASE)
+        lines = [line for line in log_text.splitlines() if pattern.search(line) and "FAIL" in line.upper()]
+        detail = "<br>".join(escape(line.strip()) for line in lines) or f"{failed_steps} step(s) failed (No detailed log found)"
+
+        # HTML
         html_lines.append(f"<tr><td>{escape(fname)}</td><td>{escape(sname)}</td><td>{escape(status)}</td><td>{detail}</td></tr>")
 
+        # JSON
+        json_output.append({
+            "feature": fname,
+            "scenario": sname,
+            "status": status,
+            "failed_steps": failed_steps,
+            "error_details": lines or ["No detailed log found"]
+        })
+
+        # TXT summary (optional)
         if status == "failed":
-            error_txt.append(f"Feature: {fname}\nScenario: {sname}\nStatus: FAILED\n" + "\n".join(step_msgs) + "\n")
+            error_txt.append(f"Feature: {fname}\nScenario: {sname}\nStatus: FAILED\n" + "\n".join(lines or ["No details found"]) + "\n")
 
     html_lines.append("</table></body></html>")
 
-    with open("abot_error.txt", "w") as f:
-        if error_txt:
-            f.write("\n".join(error_txt))
-        else:
-            f.write("✅ All scenarios passed successfully.")
-
     with open("abot_summary.html", "w") as f:
         f.write("\n".join(html_lines))
+
+    with open("abot_summary.json", "w") as f:
+        json.dump(json_output, f, indent=2)
+
+    with open("abot_error.txt", "w") as f:
+        f.write("\n".join(error_txt) if error_txt else "✅ All scenarios passed successfully.")
+
 
 
 def download_and_print_log(folder):
@@ -140,11 +157,11 @@ if __name__ == "__main__":
     poll_status()
     folder = get_artifact_folder()
     summary = get_summary(folder)
-
-   
-    generate_reports(summary)
     download_and_print_log(folder)
 
+    with open("abot_log.log", "r") as logf:
+        log_text = logf.read()
 
+    generate_reports(summary, log_text)
     check_result(summary)
 
