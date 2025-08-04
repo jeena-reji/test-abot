@@ -21,27 +21,32 @@ jobs:
       - name: Run ABot tags
         run: python abot_runner.py 
 
-      - name:  Upload ABot Summary
+      - name: Upload ABot Summary JSON
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: abot-summary
-          path: abot_summary.json
-
-      - name:  Upload ABot Logs
+          name: abot-summary-json
+          path: execution_summary.json
+      
+      - name: Upload ABot Summary HTML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: abot-summary-html
+          path: abot_summary.html
+      
+      - name: Upload ABot Error Text
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: abot-error
+          path: abot_error.txt
+      
+      - name: Upload ABot Logs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: abot-log
           path: abot_log.log
 
-      - name: Upload ABot Summary HTML
-        uses: actions/upload-artifact@v4
-        with:
-          name: abot-summary-html
-          path: abot_summary.html
-
-      - name: Upload ABot Error Text
-        uses: actions/upload-artifact@v4
-        with:
-          name: abot-error
-          path: abot_error.txt
 
