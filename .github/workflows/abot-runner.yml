@@ -32,3 +32,16 @@ jobs:
         with:
           name: abot-log
           path: abot_log.log
+
+      - name: Upload ABot Summary HTML
+        uses: actions/upload-artifact@v4
+        with:
+          name: abot-summary-html
+          path: abot_summary.html
+
+      - name: Upload ABot Error Text
+        uses: actions/upload-artifact@v4
+        with:
+          name: abot-error
+          path: abot_error.txt
+
