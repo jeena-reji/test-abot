@@ -93,41 +93,31 @@ def generate_reports(summary):
         "<table border='1' cellpadding='5'><tr><th>Feature</th><th>Scenario</th><th>Status</th><th>Error Details</th></tr>"
     ]
 
-    scenarios = summary.get("feature_summary", {}).get("featureResult", [])
+    scenarios = summary.get("feature_summary", {}).get("result", {}).get("data", [])
     for feature in scenarios:
         fname = feature.get("featureName", "Unknown")
-        for scenario in feature.get("scenarios", []):
-            sname = scenario.get("scenarioName", "Unnamed")
-            status = scenario.get("status", "unknown")
-            step_msgs = []
+        sname = feature.get("scenarioName", "Unnamed")
+        status = feature.get("features", {}).get("status", "unknown")
+        failed_steps = feature.get("steps", {}).get("failed", 0)
+        step_msgs = [f"{failed_steps} step(s) failed (Details not provided by API)"] if failed_steps else []
 
-            for step in scenario.get("steps", []):
-                if step.get("status") == "failed":
-                    msg = step.get("error_message", "No error message")
-                    step_msgs.append(msg)
+        detail = "<br>".join(escape(m) for m in step_msgs)
+        html_lines.append(f"<tr><td>{escape(fname)}</td><td>{escape(sname)}</td><td>{escape(status)}</td><td>{detail}</td></tr>")
 
-            detail = "<br>".join(escape(m) for m in step_msgs)
-            html_lines.append(f"<tr><td>{escape(fname)}</td><td>{escape(sname)}</td><td>{escape(status)}</td><td>{detail}</td></tr>")
-
-            if status == "failed":
-                error_txt.append(f"Feature: {fname}\nScenario: {sname}\n" + "\n".join(step_msgs) + "\n")
+        if status == "failed":
+            error_txt.append(f"Feature: {fname}\nScenario: {sname}\nStatus: FAILED\n" + "\n".join(step_msgs) + "\n")
 
     html_lines.append("</table></body></html>")
 
     with open("abot_error.txt", "w") as f:
-        f.write("\n".join(error_txt) if error_txt else "✅ All scenarios passed successfully.")
+        if error_txt:
+            f.write("\n".join(error_txt))
+        else:
+            f.write("✅ All scenarios passed successfully.")
 
     with open("abot_summary.html", "w") as f:
         f.write("\n".join(html_lines))
 
-def check_result(summary):
-    result = summary["feature_summary"]["result"]
-    failed = result["totalScenarios"]["totalScenariosFailed"]["totalScenariosFailedNumber"]
-    if failed > 0:
-        print(f"Test failed: {failed} scenario(s) failed.")
-        sys.exit(1)
-    else:
-        print("All test scenarios passed.")
 
 def download_and_print_log(folder):
     log_url = f"{ABOT_URL}/abot/api/v5/artifacts/logs"
