@@ -30,11 +30,11 @@ def update_config():
     print("Updating config...")
     payload = {
         "uncomment": [
-            "ABOT.SUTVARS=file:abot-emulated/sut-vars/default.properties"
+            "ABOT.SUTVARS=file:abot-emulated/sut-vars/default4g5g.properties"
         ],
         "comment": [
             "ABOT.SUTVARS=file:abot-emulated/sut-vars/default5g.properties",
-            "ABOT.SUTVARS=file:abot-emulated/sut-vars/default4g5g.properties",
+            "ABOT.SUTVARS=file:abot-emulated/sut-vars/default.properties",
             "ABOT.SUTVARS.ORAN=file:abot-emulated/sut-vars/default5g-oran.properties"
         ],
         "update": {}
