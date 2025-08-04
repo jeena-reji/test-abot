@@ -136,19 +136,28 @@ def generate_reports(summary, log_text):
 
 
 
-def download_and_print_log(folder):
+def download_and_print_log(folder, retries=3, delay=10):
     log_url = f"{ABOT_URL}/abot/api/v5/artifacts/logs"
     params = {"foldername": folder}
     print("Downloading ABot execution log...")
-    res = requests.get(log_url, headers=headers, params=params)
-    res.raise_for_status()
 
-    log_text = res.text
-    print("ABot Execution Log:\n")
-    print(log_text)
+    for attempt in range(1, retries + 1):
+        res = requests.get(log_url, headers=headers, params=params)
+        if res.status_code == 200:
+            log_text = res.text
+            print("ABot Execution Log:\n")
+            print(log_text)
+            with open("abot_log.log", "w") as f:
+                f.write(log_text)
+            return
+        else:
+            print(f"Log not ready yet (Attempt {attempt}/{retries}). Retrying in {delay}s...")
+            time.sleep(delay)
 
+    print(f"❌ Failed to download log after {retries} retries.")
     with open("abot_log.log", "w") as f:
-        f.write(log_text)
+        f.write("Log download failed or not available.")
+
 
 if __name__ == "__main__":
     login()
