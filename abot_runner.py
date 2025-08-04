@@ -150,6 +150,11 @@ if __name__ == "__main__":
     poll_status()
     folder = get_artifact_folder()
     summary = get_summary(folder)
+
+   
     generate_reports(summary)
-    check_result(summary)
     download_and_print_log(folder)
+
+
+    check_result(summary)
+
