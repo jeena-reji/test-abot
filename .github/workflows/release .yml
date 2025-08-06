@@ -44,7 +44,7 @@ jobs:
           pylint **/*.py || true
 
       - name: Run Snyk scan (Python)
-        uses: snyk/actions/python-setup@v1
+        uses: snyk/actions@0.4.0
 
         with:
           args: test --all-projects
