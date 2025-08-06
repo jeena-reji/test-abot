@@ -1,0 +1,70 @@
+name: Code Scan and Docker Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+  pull_request:
+
+env:
+  SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+  SONAR_HOST_URL: http://your-sonarqube-server-url
+  SONAR_PROJECT_KEY: your-project-key
+  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+  GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+
+jobs:
+  scan-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install Python deps
+        run: pip install pylint
+
+      - name: Install Node deps (for Next.js or ESLint)
+        run: npm ci
+
+      - name: ✅ Run Pylint
+        run: |
+          pylint **/*.py || true  # continue even if errors
+
+      - name: ✅ Run Snyk scan
+        uses: snyk/actions/node@v1
+        with:
+          args: test
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: ✅ Run SonarQube scan
+        uses: SonarSource/sonarqube-scan-action@v1.2
+        with:
+          args: >
+            -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
+            -Dsonar.sources=.
+            -Dsonar.host.url=${{ env.SONAR_HOST_URL }}
+            -Dsonar.login=${{ env.SONAR_TOKEN }}
+
+      - name: 🐳 Build Docker image
+        run: |
+          docker build -t $IMAGE_NAME:latest .
+
+      - name: 🔐 Log in to GitHub Container Registry
+        run: echo "${{ env.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ env.GHCR_USERNAME }} --password-stdin
+
+      - name: 🚀 Push Docker image
+        run: docker push $IMAGE_NAME:latest
