@@ -46,8 +46,10 @@ jobs:
 
       - name: Install Snyk CLI
         run: |
-          curl -sL https://snyk.io/install | bash
-          echo "$HOME/.snyk" >> $GITHUB_PATH
+          curl -Lo snyk https://github.com/snyk/snyk/releases/latest/download/snyk-linux
+          chmod +x snyk
+          sudo mv snyk /usr/local/bin/snyk
+      
 
 
       - name: Run Snyk scan (Python)
