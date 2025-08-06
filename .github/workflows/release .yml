@@ -2,14 +2,20 @@ name: Code Scan and Docker Build
 
 on:
   workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Release version for the Docker image (e.g. v1.0.0)'
+        required: true
+      
+
   push:
     branches: [ main ]
   pull_request:
 
 env:
   SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-  SONAR_HOST_URL: http://localhost:9000
-  SONAR_PROJECT_KEY: test-abot
+  SONAR_HOST_URL: http://your-sonarqube-server-url
+  SONAR_PROJECT_KEY: your-project-key
   SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
   GHCR_USERNAME: ${{ secrets.GHUSER }}
   GHCR_TOKEN: ${{ secrets.GHPASS }}
@@ -39,18 +45,18 @@ jobs:
       - name: Install Node deps (for Next.js or ESLint)
         run: npm ci
 
-      - name: ✅ Run Pylint
+      - name: Run Pylint
         run: |
-          pylint **/*.py || true  # continue even if errors
+          pylint **/*.py || true
 
-      - name: ✅ Run Snyk scan
+      - name: Run Snyk scan
         uses: snyk/actions/node@v1
         with:
           args: test
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
-      - name: ✅ Run SonarQube scan
+      - name: Run SonarQube scan
         uses: SonarSource/sonarqube-scan-action@v1.2
         with:
           args: >
@@ -59,12 +65,12 @@ jobs:
             -Dsonar.host.url=${{ env.SONAR_HOST_URL }}
             -Dsonar.login=${{ env.SONAR_TOKEN }}
 
-      - name: 🐳 Build Docker image
+      - name: Build Docker image
         run: |
-          docker build -t $IMAGE_NAME:latest .
+          docker build -t $IMAGE_NAME:${{ github.event.inputs.release_version }} .
 
-      - name: 🔐 Log in to GitHub Container Registry
-        run: echo "${{ env.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ env.GHCR_USERNAME }} --password-stdin
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ env.GHPASS }}" | docker login ghcr.io -u ${{ env.GHUSER}} --password-stdin
 
       - name: 🚀 Push Docker image
-        run: docker push $IMAGE_NAME:latest
+        run: docker push $IMAGE_NAME:${{ github.event.inputs.release_version }}
