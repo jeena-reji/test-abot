@@ -13,7 +13,7 @@ on:
 
 env:
   SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-  SONAR_HOST_URL: http://your-sonarqube-server-url
+  SONAR_HOST_URL: http://192.168.1.37:9000
   SONAR_PROJECT_KEY: your-project-key
   SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
   GHCR_USERNAME: ${{ secrets.GHUSER }}
