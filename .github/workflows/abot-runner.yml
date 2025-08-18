@@ -22,22 +22,26 @@ jobs:
         run: python abot_runner.py
 
       - name: Read artifact folder path
+        if: always()
         id: get-artifact
         run: echo "artifact=$(cat artifact_path.txt)" >> $GITHUB_OUTPUT
 
       - name: Upload ABot Execution Artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: abot-execution
           path: ${{ steps.get-artifact.outputs.artifact }}
 
       - name: Upload ABot Summary
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: abot-summary
           path: execution_summary.json
 
       - name: Upload ABot Logs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: abot-log
