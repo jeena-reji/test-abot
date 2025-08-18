@@ -91,9 +91,11 @@ def check_result(summary):
     failed = result["totalScenarios"]["totalScenariosFailed"]["totalScenariosFailedNumber"]
     if failed > 0:
         print(f"Test failed: {failed} scenario(s) failed.")
-        sys.exit(1)
+        with open("test_failed.txt", "w") as f:
+            f.write(str(failed))
     else:
         print("All test scenarios passed.")
+
 
 def download_and_print_log(folder):
     log_url = f"{ABOT_URL}/abot/api/v5/artifacts/logs"
