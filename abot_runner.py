@@ -120,3 +120,7 @@ if __name__ == "__main__":
     summary = get_summary(folder)
     check_result(summary)
     download_and_print_log(folder)
+
+    # Save folder path for GitHub Actions
+    with open("artifact_path.txt", "w") as f:
+        f.write(folder)
