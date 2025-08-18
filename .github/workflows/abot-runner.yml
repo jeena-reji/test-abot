@@ -46,3 +46,12 @@ jobs:
         with:
           name: abot-log
           path: abot_log.log
+
+      - name: Fail job if tests failed
+        if: always()
+        run: |
+          if [ -f test_failed.txt ]; then
+            echo "Tests failed"
+            cat test_failed.txt
+            exit 1
+          fi
