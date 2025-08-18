@@ -35,7 +35,8 @@ def update_config():
     }
     res = requests.post(CONFIG_URL, headers=headers, json=payload, params={"filename": CONFIG_FILE})
     res.raise_for_status()
-    print("Config updated to IOSMCN testbed (emulated-smf + sut-upf).")
+    print(f"Config updated: ABOT.TESTBED = {payload['update']['ABOT.TESTBED']}")
+
 
 
 def execute_feature():
