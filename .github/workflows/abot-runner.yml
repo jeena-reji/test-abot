@@ -19,15 +19,25 @@ jobs:
         run: pip install requests
 
       - name: Run ABot tags
-        run: python abot_runner.py 
+        run: python abot_runner.py
 
-      - name:  Upload ABot Summary
+      - name: Read artifact folder path
+        id: get-artifact
+        run: echo "artifact=$(cat artifact_path.txt)" >> $GITHUB_OUTPUT
+
+      - name: Upload ABot Execution Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: abot-execution
+          path: ${{ steps.get-artifact.outputs.artifact }}
+
+      - name: Upload ABot Summary
         uses: actions/upload-artifact@v4
         with:
           name: abot-summary
-          path: abot_summary.json
+          path: execution_summary.json
 
-      - name:  Upload ABot Logs
+      - name: Upload ABot Logs
         uses: actions/upload-artifact@v4
         with:
           name: abot-log
