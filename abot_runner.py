@@ -29,19 +29,14 @@ def login():
 def update_config():
     print("Updating config...")
     payload = {
-        "uncomment": [
-            "ABOT.SUTVARS=file:abot-emulated/sut-vars/default4g5g.properties"
-        ],
-        "comment": [
-            "ABOT.SUTVARS=file:abot-emulated/sut-vars/default5g.properties",
-            "ABOT.SUTVARS=file:abot-emulated/sut-vars/default.properties",
-            "ABOT.SUTVARS.ORAN=file:abot-emulated/sut-vars/default5g-oran.properties"
-        ],
-        "update": {}
+        "update": {
+            "ABOT.TESTBED": "testbed-5g-IOSMCN=emulated-smf+sut-upf"
+        }
     }
     res = requests.post(CONFIG_URL, headers=headers, json=payload, params={"filename": CONFIG_FILE})
     res.raise_for_status()
-    print("Config updated.")
+    print("Config updated to IOSMCN testbed (emulated-smf + sut-upf).")
+
 
 def execute_feature():
     print(f"Executing feature tag: {FEATURE_TAG}")
