@@ -30,7 +30,7 @@ def update_config():
     print("Updating config...")
     payload = {
         "update": {
-            "ABOT.TESTBED": "testbed-5G-IOSMCN"
+            "ABOT.TESTBED": "testbed-5G-IOSMCN-emu-amf-sut-smf"
         }
     }
     res = requests.post(CONFIG_URL, headers=headers, json=payload, params={"filename": CONFIG_FILE})
