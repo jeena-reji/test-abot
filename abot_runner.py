@@ -54,7 +54,8 @@ def verify_current_config():
             return None
             
     except requests.exceptions.RequestException as e:
-        print(f"Failed to verify config: {e}")
+        print(f"Config verification endpoint not available: {e}")
+        print("Proceeding without config verification...")
         return None
 
 def update_config():
@@ -66,7 +67,7 @@ def update_config():
     # Update configuration with explicit testbed
     payload = {
         "update": {
-            "ABOT.TESTBED": "testbed-5G-IOSMCN-emu-amf-sut-smf"
+            "ABOT.TESTBED": "testbed-5G-IOSMCN"
         }
     }
     
@@ -189,42 +190,92 @@ def get_summary(folder):
 def check_result(summary):
     try:
         result = summary["feature_summary"]["result"]
-        failed = result["totalScenarios"]["totalScenariosFailed"]["totalScenariosFailedNumber"]
-        passed = result["totalScenarios"]["totalScenariosSucceeded"]["totalScenariosSucceededNumber"]
         
-        print(f"Test Results: {passed} passed, {failed} failed")
+        # Fix: Use the correct key names from the actual response
+        failed = result["totalScenarios"]["totalScenariosFailed"]["totalScenariosFailedNumber"]
+        passed = result["totalScenarios"]["totalScenariosPassed"]["totalScenariosPassedNumber"]
+        total = result["totalScenarios"]["totalScenariosTotal"]["totalScenariosTotalNumber"]
+        
+        print(f"Test Results: {passed} passed, {failed} failed, {total} total")
+        
+        # Detailed step results
+        steps = result["totalSteps"]
+        steps_passed = steps["totalStepsPassed"]["totalStepsPassedNumber"]
+        steps_failed = steps["totalStepsFailed"]["totalStepsFailedNumber"]
+        steps_skipped = steps["totalStepsSkipped"]["totalStepsSkippedNumber"]
+        
+        print(f"Step Results: {steps_passed} passed, {steps_failed} failed, {steps_skipped} skipped")
         
         if failed > 0:
-            print(f"Test failed: {failed} scenario(s) failed.")
+            print(f"\n❌ Test FAILED: {failed} scenario(s) failed.")
+            
+            # Show detailed failure information
+            print("\nFailure Details:")
+            for i, data in enumerate(result.get("data", []), 1):
+                scenario_name = data.get("scenarioName", "Unknown Scenario")
+                feature_name = data.get("featureName", "Unknown Feature")
+                scenario_failed = data["scenario"]["failed"]
+                steps_failed = data["steps"]["failed"]
+                
+                if scenario_failed > 0:
+                    print(f"  {i}. Feature: {feature_name}")
+                    print(f"     Scenario: {scenario_name}")
+                    print(f"     Failed Steps: {steps_failed}")
+            
             with open("test_failed.txt", "w") as f:
                 f.write(str(failed))
+                
+            return False
         else:
-            print("All test scenarios passed.")
+            print("✅ All test scenarios passed.")
+            return True
             
     except KeyError as e:
         print(f"Error parsing results: {e}")
         print("Full summary structure:")
         print(json.dumps(summary, indent=2))
+        return False
 
 def download_and_print_log(folder):
-    log_url = f"{ABOT_URL}/abot/api/v5/artifacts/logs"
-    params = {"foldername": folder}
-    print("Downloading ABot execution log...")
+    """Try multiple log endpoints to get execution logs"""
+    log_endpoints = [
+        f"{ABOT_URL}/abot/api/v5/artifacts/logs",
+        f"{ABOT_URL}/abot/api/v5/artifacts/log",
+        f"{ABOT_URL}/abot/api/v5/execution_logs",
+    ]
     
-    try:
-        res = requests.get(log_url, headers=headers, params=params, timeout=60)
-        res.raise_for_status()
+    params = {"foldername": folder}
+    
+    for i, log_url in enumerate(log_endpoints, 1):
+        print(f"Trying log endpoint {i}/{len(log_endpoints)}: {log_url}")
+        try:
+            res = requests.get(log_url, headers=headers, params=params, timeout=60)
+            res.raise_for_status()
 
-        log_text = res.text
-        print("ABot Execution Log:\n")
-        print(log_text)
+            log_text = res.text
+            if log_text and log_text.strip():
+                print("✅ ABot Execution Log Found:\n")
+                print(log_text)
 
-        # Save to file as well
-        with open("abot_log.log", "w") as f:
-            f.write(log_text)
-            
-    except requests.exceptions.RequestException as e:
-        print(f"Failed to download log: {e}")
+                # Save to file as well
+                with open("abot_log.log", "w") as f:
+                    f.write(log_text)
+                return
+            else:
+                print(f"Empty response from endpoint {i}")
+                
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Endpoint {i} failed: {e}")
+            continue
+    
+    print("⚠️  Could not retrieve execution logs from any endpoint")
+    print("You may need to check logs manually in the ABot UI or try a different API endpoint")
+    
+    # Create a summary log file with available information
+    with open("execution_info.log", "w") as f:
+        f.write(f"Artifact Folder: {folder}\n")
+        f.write(f"Execution completed but logs not accessible via API\n")
+        f.write(f"Check ABot UI at: https://10.176.27.73/abotfrontail_9004\n")
 
 if __name__ == "__main__":
     try:
@@ -249,11 +300,48 @@ if __name__ == "__main__":
         with open("artifact_path.txt", "w") as f:
             f.write(folder)
             
-        print("=== ABot Test Automation Completed ===")
+def analyze_execution_failure(summary):
+    """Analyze why the test failed based on the execution summary"""
+    print("\n=== FAILURE ANALYSIS ===")
+    
+    result = summary["feature_summary"]["result"]
+    
+    # Check for common failure patterns
+    print("1. Checking execution status...")
+    
+    for i, data in enumerate(result.get("data", []), 1):
+        feature_name = data.get("featureName", "Unknown")
+        scenario_name = data.get("scenarioName", "Unknown")
         
-    except KeyboardInterrupt:
-        print("\nExecution interrupted by user.")
-        sys.exit(1)
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        sys.exit(1)
+        print(f"\nTest Run #{i}:")
+        print(f"  Feature: {feature_name}")
+        print(f"  Scenario: {scenario_name}")
+        
+        # Step analysis
+        steps = data["steps"]
+        print(f"  Steps - Passed: {steps['passed']}, Failed: {steps['failed']}, Skipped: {steps['skipped']}")
+        
+        # Feature status
+        feature_status = data["features"]
+        print(f"  Duration: {feature_status['duration']:.2f}s")
+        print(f"  Status: {feature_status['status']}")
+        
+        # Check for testbed issues
+        if steps['failed'] > 0 and steps['skipped'] > steps['passed']:
+            print("  ⚠️  HIGH SKIP RATE - Possible testbed configuration issue")
+        
+        if feature_status['duration'] < 10:
+            print("  ⚠️  SHORT EXECUTION TIME - Possible early failure")
+    
+    # Configuration recommendations
+    print("\n2. Possible Issues:")
+    print("   - Testbed configuration may not be properly set")
+    print("   - 5G core network components (AMF/SMF/UPF) may not be running")
+    print("   - Network connectivity issues between test components")
+    print("   - Authentication/security configuration mismatch")
+    
+    print("\n3. Recommended Actions:")
+    print("   - Verify testbed is running: testbed-5G-IOSMCN-emu-amf-sut-smf")
+    print("   - Check ABot UI configuration matches script settings")
+    print("   - Ensure 5G core network is properly deployed and accessible")
+    print("   - Review detailed logs in ABot UI for specific error messages")
