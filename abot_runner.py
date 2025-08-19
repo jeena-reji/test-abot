@@ -81,18 +81,20 @@ def verify_current_config():
     return None
 
 def update_config():
-    print("Updating config...")
+    print("Updating config to CORE configuration...")
     
-    # Configuration based on Postman collection
-    # This switches from emulated to core configuration
+    # CORRECTED: Use CORE paths (without abot-emulated)
     payload = {
         "uncomment": [
-            "ABOT.SUTVARS=file:abot-emulated/sut-vars/default.properties"
+            # CORE configuration - NO abot-emulated prefix
+            "ABOT.SUTVARS=file:sut-vars/default.properties"
         ],
         "comment": [
+            # Comment out ALL emulated configurations (with abot-emulated prefix)
             "ABOT.SUTVARS=file:abot-emulated/sut-vars/default5g.properties",
             "ABOT.SUTVARS=file:abot-emulated/sut-vars/default4g5g.properties",
-            "ABOT.SUTVARS.ORAN=file:abot-emulated/sut-vars/default5g-oran.properties"
+            "ABOT.SUTVARS.ORAN=file:abot-emulated/sut-vars/default5g-oran.properties",
+            "ABOT.SUTVARS=file:abot-emulated/sut-vars/default.properties"  # Comment out emulated default too
         ],
         "update": {
             "ABOT.TESTBED": "testbed-5G-IOSMCN-emu-amf-sut-smf"
@@ -100,31 +102,32 @@ def update_config():
     }
     
     try:
-        # Use quoted filename as shown in Postman
-        quoted_filename = f'"{CONFIG_FILE}"'
-        params = {"filename": quoted_filename}
+        params = {"filename": CONFIG_FILE}
         
-        print("Sending configuration payload:")
+        print("Sending CORE configuration payload:")
         print(json.dumps(payload, indent=2))
         
         res = requests.post(CONFIG_URL, headers=headers, json=payload, params=params, timeout=30)
         res.raise_for_status()
         
         print(f"Config update response: {res.status_code}")
-        
-        # Print response body for debugging
         response_data = res.json()
         print("Response:", json.dumps(response_data, indent=2))
         
         if response_data.get("Status") == "OK" or response_data.get("status") == "OK":
             print("✅ Configuration update successful!")
-            print("✅ Switched from emulated to core configuration")
+            print("✅ Switched from EMULATED to CORE configuration")
             print("✅ Updated testbed setting")
+            
+            # Wait for config to propagate
+            print("⏳ Waiting for configuration to propagate...")
+            time.sleep(15)
+            
             return True
         else:
             print(f"❌ Configuration update failed: {response_data}")
             return False
-        
+            
     except requests.exceptions.RequestException as e:
         print(f"Config update failed: {e}")
         if hasattr(e, 'response') and e.response is not None:
