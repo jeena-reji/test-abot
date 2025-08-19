@@ -67,7 +67,7 @@ def update_config():
     # Update configuration with explicit testbed
     payload = {
         "update": {
-            "ABOT.TESTBED": "testbed-5G-IOSMCN"
+            "ABOT.TESTBED": "testbed-5G-IOSMCN-emu-amf-sut-smf"
         }
     }
     
@@ -345,3 +345,47 @@ def analyze_execution_failure(summary):
     print("   - Check ABot UI configuration matches script settings")
     print("   - Ensure 5G core network is properly deployed and accessible")
     print("   - Review detailed logs in ABot UI for specific error messages")
+
+if __name__ == "__main__":
+    try:
+        print("=== ABot Test Automation Started ===")
+        login()
+        
+        print("\n=== Configuration Phase ===")
+        update_config()
+        wait_for_system_ready()
+        
+        print("\n=== Execution Phase ===")
+        execute_feature()
+        poll_status()
+        
+        print("\n=== Results Phase ===")
+        folder = get_artifact_folder()
+        summary = get_summary(folder)
+        test_passed = check_result(summary)
+        
+        if not test_passed:
+            analyze_execution_failure(summary)
+        
+        download_and_print_log(folder)
+
+        # Save folder path for GitHub Actions
+        with open("artifact_path.txt", "w") as f:
+            f.write(folder)
+            
+        print("=== ABot Test Automation Completed ===")
+        
+        if not test_passed:
+            print("❌ TESTS FAILED - Check the failure analysis above")
+            print("Exiting with failure code for CI/CD pipeline...")
+            sys.exit(1)
+        else:
+            print("✅ ALL TESTS PASSED")
+            sys.exit(0)
+        
+    except KeyboardInterrupt:
+        print("\nExecution interrupted by user.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        sys.exit(1)
