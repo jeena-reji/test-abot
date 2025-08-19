@@ -277,29 +277,6 @@ def download_and_print_log(folder):
         f.write(f"Execution completed but logs not accessible via API\n")
         f.write(f"Check ABot UI at: https://10.176.27.73/abotfrontail_9004\n")
 
-if __name__ == "__main__":
-    try:
-        print("=== ABot Test Automation Started ===")
-        login()
-        
-        print("\n=== Configuration Phase ===")
-        update_config()
-        wait_for_system_ready()
-        
-        print("\n=== Execution Phase ===")
-        execute_feature()
-        poll_status()
-        
-        print("\n=== Results Phase ===")
-        folder = get_artifact_folder()
-        summary = get_summary(folder)
-        check_result(summary)
-        download_and_print_log(folder)
-
-        # Save folder path for GitHub Actions
-        with open("artifact_path.txt", "w") as f:
-            f.write(folder)
-            
 def analyze_execution_failure(summary):
     """Analyze why the test failed based on the execution summary"""
     print("\n=== FAILURE ANALYSIS ===")
