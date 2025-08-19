@@ -56,7 +56,7 @@ def update_config():
         }
     }
 
-    headers = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
+    local_headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     response = requests.post(CONFIG_URL, json=payload, headers=headers)
 
     if response.status_code != 200:
@@ -346,6 +346,9 @@ def analyze_execution_failure(summary):
     print("   - Review detailed logs in ABot UI for specific error messages")
 
 if __name__ == "__main__":
+    token = login()
+    config_success = update_config(token)
+
     try:
         print("=== ABot Test Automation Started ===")
         login()
