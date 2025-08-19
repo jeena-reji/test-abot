@@ -97,7 +97,7 @@ def update_config():
             "ABOT.SUTVARS=file:abot-emulated/sut-vars/default.properties"  # Comment out emulated default too
         ],
         "update": {
-            "ABOT.TESTBED": "testbed-5G-IOSMCN-emu-amf-sut-smf"
+            "ABOT.TESTBED": "testbed-5G-IOSMCN"
         }
     }
     
