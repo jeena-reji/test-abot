@@ -80,26 +80,42 @@ def verify_current_config():
     print("⚠️  All config verification endpoints failed")
     return None
 
-def update_config():
+
+    def update_config():
     print("Updating config to CORE configuration...")
     
-    # CORRECTED: Use CORE paths (without abot-emulated)
     payload = {
         "uncomment": [
-            # CORE configuration - NO abot-emulated prefix
             "ABOT.SUTVARS=file:sut-vars/default.properties"
         ],
         "comment": [
-            # Comment out ALL emulated configurations (with abot-emulated prefix)
             "ABOT.SUTVARS=file:abot-emulated/sut-vars/default5g.properties",
             "ABOT.SUTVARS=file:abot-emulated/sut-vars/default4g5g.properties",
             "ABOT.SUTVARS.ORAN=file:abot-emulated/sut-vars/default5g-oran.properties",
-            "ABOT.SUTVARS=file:abot-emulated/sut-vars/default.properties"  # Comment out emulated default too
+            "ABOT.SUTVARS=file:abot-emulated/sut-vars/default.properties"
         ],
         "update": {
             "ABOT.TESTBED": "testbed-5G-IOSMCN"
         }
     }
+
+    headers = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
+    response = requests.post(CONFIG_URL, json=payload, headers=headers)
+
+    if response.status_code != 200:
+        print(f"❌ Config update failed! ({response.status_code}) {response.text}")
+        sys.exit(1)
+
+    # 🔍 Verify
+    check = requests.get(CONFIG_URL, headers=headers)
+    if check.status_code == 200:
+        data = check.json()
+        print("✅ Current config after update:")
+        print("   ABOT.TESTBED =", data.get("ABOT.TESTBED"))
+        print("   ABOT.SUTVARS =", data.get("ABOT.SUTVARS"))
+    else:
+        print(f"⚠️ Could not verify config ({check.status_code})")
+
     
     try:
         params = {"filename": CONFIG_FILE}
