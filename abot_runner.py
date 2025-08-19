@@ -34,56 +34,13 @@ def login():
 def verify_current_config():
     """Verify current configuration using alternative methods"""
     print("Verifying current configuration...")
-    
-    # Try multiple potential config endpoints
-    config_endpoints = [
-        f"{ABOT_URL}/abot/api/v5/config_properties",
-        f"{ABOT_URL}/abot/api/v5/get_config_properties", 
-        f"{ABOT_URL}/abot/api/v5/configuration",
-        f"{ABOT_URL}/abot/api/v5/config"
-    ]
-    
-    params = {"filename": CONFIG_FILE}
-    
-    for endpoint in config_endpoints:
-        try:
-            print(f"Trying config endpoint: {endpoint}")
-            res = requests.get(endpoint, headers=headers, params=params, timeout=30)
-            res.raise_for_status()
-            config_data = res.json()
-            
-            print("✅ Configuration retrieved successfully:")
-            print(json.dumps(config_data, indent=2))
-            
-            # Try to find ABOT.TESTBED in various response structures
-            if "data" in config_data and "properties" in config_data["data"]:
-                properties = config_data["data"]["properties"]
-                current_testbed = properties.get("ABOT.TESTBED", "NOT_SET")
-                print(f"Current ABOT.TESTBED: {current_testbed}")
-                return current_testbed
-            elif "properties" in config_data:
-                properties = config_data["properties"]
-                current_testbed = properties.get("ABOT.TESTBED", "NOT_SET")
-                print(f"Current ABOT.TESTBED: {current_testbed}")
-                return current_testbed
-            elif "ABOT.TESTBED" in config_data:
-                current_testbed = config_data["ABOT.TESTBED"]
-                print(f"Current ABOT.TESTBED: {current_testbed}")
-                return current_testbed
-            else:
-                print("Could not find ABOT.TESTBED in config structure")
-                
-        except requests.exceptions.RequestException as e:
-            print(f"❌ Endpoint failed: {e}")
-            continue
-    
-    print("⚠️  All config verification endpoints failed")
+    ...
     return None
 
 
-    def update_config():
+def update_config():
     print("Updating config to CORE configuration...")
-    
+
     payload = {
         "uncomment": [
             "ABOT.SUTVARS=file:sut-vars/default.properties"
@@ -115,6 +72,9 @@ def verify_current_config():
         print("   ABOT.SUTVARS =", data.get("ABOT.SUTVARS"))
     else:
         print(f"⚠️ Could not verify config ({check.status_code})")
+
+    ...
+
 
     
     try:
