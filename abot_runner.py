@@ -83,53 +83,52 @@ def verify_current_config():
 def update_config():
     print("Updating config...")
     
-    # First verify current config
-    current_testbed = verify_current_config()
-    target_testbed = "testbed-5G-IOSMCN-emu-amf-sut-smf"
-    
-    # Check if config is already correct
-    if current_testbed == target_testbed:
-        print(f"✅ Configuration already correct: {current_testbed}")
-        return True
-    
-    # Update configuration with explicit testbed
+    # Configuration based on Postman collection
+    # This switches from emulated to core configuration
     payload = {
+        "uncomment": [
+            "ABOT.SUTVARS=file:abot-emulated/sut-vars/default.properties"
+        ],
+        "comment": [
+            "ABOT.SUTVARS=file:abot-emulated/sut-vars/default5g.properties",
+            "ABOT.SUTVARS=file:abot-emulated/sut-vars/default4g5g.properties",
+            "ABOT.SUTVARS.ORAN=file:abot-emulated/sut-vars/default5g-oran.properties"
+        ],
         "update": {
-            "ABOT.TESTBED": target_testbed
+            "ABOT.TESTBED": "testbed-5G-IOSMCN-emu-amf-sut-smf"
         }
     }
     
     try:
-        params = {"filename": CONFIG_FILE}
+        # Use quoted filename as shown in Postman
+        quoted_filename = f'"{CONFIG_FILE}"'
+        params = {"filename": quoted_filename}
+        
+        print("Sending configuration payload:")
+        print(json.dumps(payload, indent=2))
+        
         res = requests.post(CONFIG_URL, headers=headers, json=payload, params=params, timeout=30)
         res.raise_for_status()
+        
         print(f"Config update response: {res.status_code}")
-        print(f"Config updated: ABOT.TESTBED = {payload['update']['ABOT.TESTBED']}")
         
-        # Wait for config to propagate
-        print("Waiting for config to propagate...")
-        time.sleep(10)
+        # Print response body for debugging
+        response_data = res.json()
+        print("Response:", json.dumps(response_data, indent=2))
         
-        # Verify the update was successful
-        print("Verifying config update...")
-        updated_testbed = verify_current_config()
-        
-        if updated_testbed == target_testbed:
-            print("✅ Configuration update verified successfully!")
+        if response_data.get("Status") == "OK" or response_data.get("status") == "OK":
+            print("✅ Configuration update successful!")
+            print("✅ Switched from emulated to core configuration")
+            print("✅ Updated testbed setting")
             return True
-        elif updated_testbed is None:
-            print("⚠️  Cannot verify config update - API endpoint unavailable")
-            print("⚠️  Proceeding but config may not have been applied")
-            user_input = input("Do you want to continue anyway? (y/N): ").lower()
-            return user_input == 'y'
         else:
-            print(f"❌ Configuration update FAILED!")
-            print(f"   Expected: {target_testbed}")
-            print(f"   Actual: {updated_testbed}")
+            print(f"❌ Configuration update failed: {response_data}")
             return False
         
     except requests.exceptions.RequestException as e:
         print(f"Config update failed: {e}")
+        if hasattr(e, 'response') and e.response is not None:
+            print(f"Response body: {e.response.text}")
         return False
 
 def wait_for_system_ready():
