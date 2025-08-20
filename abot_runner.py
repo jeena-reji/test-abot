@@ -76,28 +76,27 @@ def wait_for_system_ready():
 
 def execute_feature():
     print(f"Executing feature tag: {FEATURE_TAG}")
-    payload = {"params": FEATURE_TAG}
+    payload = {"feature_tags": [FEATURE_TAG]}  # correct key
     try:
         res = requests.post(EXECUTE_URL, headers=headers, json=payload, timeout=30)
         res.raise_for_status()
-        print("✔ Test execution started.")
-        if res.text:
-            try:
-                print("Execution response:", json.dumps(res.json(), indent=2))
-            except json.JSONDecodeError:
-                print("Raw execution response:", res.text)
+        data = res.json().get("data", {})
+        exec_id = data.get("execution_id")  # or whatever ABot returns
+        print(f"✔ Test execution started with ID: {exec_id}")
+        return exec_id
     except requests.exceptions.RequestException as e:
         print(f"❌ Test execution failed: {e}")
         sys.exit(1)
 
 
-def poll_status():
-    print("Polling execution status...")
+
+def poll_status(exec_id):
+    print(f"Polling execution status for ID: {exec_id}...")
     max_attempts = 180
     attempt = 0
     while attempt < max_attempts:
         try:
-            res = requests.get(STATUS_URL, headers=headers, timeout=30)
+            res = requests.get(f"{STATUS_URL}/{exec_id}", headers=headers, timeout=30)
             res.raise_for_status()
             json_data = res.json()
             print(f"Status check #{attempt + 1}")
