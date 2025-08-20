@@ -10,7 +10,7 @@ SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary"
 
 USERNAME = "ajeesh@cazelabs.com"
 PASSWORD = "ajeesh1234"
-FEATURE_TAG = "5gs-initial-registration-sdcore-0.0.10"
+FEATURE_TAG = "@5gs-initial-registration-with-integrity-and-ciphering-sdcore-0.1.2"
 
 headers = {"Content-Type": "application/json"}
 
