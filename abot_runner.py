@@ -33,30 +33,43 @@ def login():
 
 def update_config():
     print("=== Configuration Phase ===")
-    print("Updating config...")
-
-    # Explicit testbed update payload
-    payload = {
-        "update": {
-            "ABOT.TESTBED": "testbed-5G-IOSMCN"
-        }
-    }
 
     try:
-        params = {"filename": CONFIG_FILE}
-        res = requests.post(
-            CONFIG_URL,
-            headers=headers,
-            json=payload,
-            params=params,
-            timeout=30
+        # 1️⃣ First update: sut-vars (user config file)
+        payload1 = {
+            "update": {
+                "ABOT.SUTVARS.ORAN": "",
+                "ABOT.SUTVARS": "file:IOSMCN/sut-vars/default5G.properties"
+            }
+        }
+        params1 = {
+            "filename": "/etc/rebaca-test-suite/config/ajeesh_cazelabs_com/ABotConfig.properties"
+        }
+        res1 = requests.post(
+            CONFIG_URL, headers=headers, json=payload1, params=params1, timeout=30
         )
-        res.raise_for_status()
+        res1.raise_for_status()
+        print(f"Config1 update response: {res1.status_code}")
+        print("✔ Updated sut-vars (ABotConfig.properties)")
 
-        print(f"Config update response: {res.status_code}")
-        print(f"Config updated: ABOT.TESTBED = {payload['update']['ABOT.TESTBED']}")
+        # 2️⃣ Second update: testbed mapping (primary config file)
+        payload2 = {
+            "update": {
+                "ABOT.TESTBED": "file:IOSMCN/testbeds/testbed-5G-IOSMCN.properties",
+                "LOAD_SWITCH": "off"
+            }
+        }
+        params2 = {
+            "filename": "/etc/rebaca-test-suite/config/ajeesh_cazelabs_com/ABot_System_Configs/ABotConfig_Primary_Configuration.properties"
+        }
+        res2 = requests.post(
+            CONFIG_URL, headers=headers, json=payload2, params=params2, timeout=30
+        )
+        res2.raise_for_status()
+        print(f"Config2 update response: {res2.status_code}")
+        print("✔ Updated testbed mapping (ABot_Primary_Configuration.properties)")
 
-        # Wait a moment for config to propagate
+        # Sleep a little so changes propagate
         time.sleep(5)
 
     except requests.exceptions.RequestException as e:
