@@ -37,7 +37,7 @@ def update_config():
     # Update configuration with explicit testbed
     payload = {
         "update": {
-            "ABOT.TESTBED": "testbed-5G-IOSMCN"
+            "ABOT.TESTBED": "IOSMCN"
         }
     }
     
