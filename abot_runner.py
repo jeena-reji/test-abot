@@ -31,38 +31,8 @@ def login():
         print(f"Login failed: {e}")
         sys.exit(1)
 
-def verify_current_config():
-    """Verify current configuration before updating"""
-    print("Verifying current configuration...")
-    try:
-        params = {"filename": CONFIG_FILE}
-        res = requests.get(VERIFY_CONFIG_URL, headers=headers, params=params, timeout=30)
-        res.raise_for_status()
-        config_data = res.json()
-        
-        print("Current configuration:")
-        print(json.dumps(config_data, indent=2))
-        
-        # Check if ABOT.TESTBED exists and its current value
-        if "data" in config_data and "properties" in config_data["data"]:
-            properties = config_data["data"]["properties"]
-            current_testbed = properties.get("ABOT.TESTBED", "NOT_SET")
-            print(f"Current ABOT.TESTBED: {current_testbed}")
-            return current_testbed
-        else:
-            print("Could not find configuration properties")
-            return None
-            
-    except requests.exceptions.RequestException as e:
-        print(f"Config verification endpoint not available: {e}")
-        print("Proceeding without config verification...")
-        return None
-
 def update_config():
     print("Updating config...")
-    
-    # First verify current config
-    current_testbed = verify_current_config()
     
     # Update configuration with explicit testbed
     payload = {
@@ -81,9 +51,7 @@ def update_config():
         # Wait a moment for config to propagate
         time.sleep(5)
         
-        # Verify the update was successful
-        verify_current_config()
-        
+    
     except requests.exceptions.RequestException as e:
         print(f"Config update failed: {e}")
         sys.exit(1)
