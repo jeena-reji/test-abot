@@ -152,8 +152,43 @@ def get_summary(folder):
         sys.exit(1)
 
 
-# keep your check_result, download_and_print_log, analyze_execution_failure here
-# (unchanged from your existing script)
+def check_result(summary):
+    """Check whether execution passed or failed based on summary JSON."""
+    try:
+        # Assuming summary has 'data' with pass/fail counts
+        if "data" in summary and isinstance(summary["data"], list):
+            for item in summary["data"]:
+                if item.get("Status", "").lower() == "fail":
+                    print("❌ Test failed")
+                    return False
+            print("✔ All tests passed")
+            return True
+        else:
+            print("⚠ Summary format unexpected, marking as failed")
+            return False
+    except Exception as e:
+        print(f"⚠ check_result error: {e}")
+        return False
+
+
+def analyze_execution_failure(summary):
+    """Prints out failed test cases from the summary JSON."""
+    try:
+        print("=== Failure Analysis ===")
+        if "data" in summary:
+            for item in summary["data"]:
+                if item.get("Status", "").lower() == "fail":
+                    print(f"- Failed test: {item.get('FeatureFileName', 'Unknown')} | Reason: {item.get('ErrorMessage', 'N/A')}")
+        else:
+            print("⚠ No detailed data found in summary.")
+    except Exception as e:
+        print(f"⚠ analyze_execution_failure error: {e}")
+
+
+def download_and_print_log(folder):
+    """Stub: downloads or prints logs for debugging (customize as needed)."""
+    print(f"📂 Logs for artifact folder {folder} would be downloaded/printed here.")
+
 
 
 if __name__ == "__main__":
