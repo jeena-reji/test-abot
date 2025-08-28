@@ -53,7 +53,7 @@ def update_config():
                 "ABOT.TESTBED": "file:IOSMCN/testbeds/testbed-5G-IOSMCN.properties",
                 "LOAD_SWITCH": "off",
                 # ⬇ Add Core IP update here
-                "ABOT.CORE.IP": "10.176.26.58"
+                # "ABOT.CORE.IP": "10.176.26.58"
             }
         }
         params2 = {
@@ -78,7 +78,7 @@ def wait_for_system_ready():
 
 def execute_feature():
     print(f"Executing feature tag: {FEATURE_TAG}")
-    payload = {"feature_tags": [FEATURE_TAG]}  # correct key
+    payload = {"tags": [FEATURE_TAG]}  # correct key
     try:
         res = requests.post(EXECUTE_URL, headers=headers, json=payload, timeout=30)
         res.raise_for_status()
