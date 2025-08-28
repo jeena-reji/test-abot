@@ -16,7 +16,7 @@ SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary"
 # Credentials and feature tag
 USERNAME = "ajeesh@cazelabs.com"
 PASSWORD = "ajeesh1234"
-FEATURE_TAG = "5gs-initial-registration-sdcore-0.0.10"
+FEATURE_TAG = "@5gs-initial-registration-sdcore-0.0.10"
 
 # Request headers
 headers = {"Content-Type": "application/json"}
@@ -82,8 +82,9 @@ def wait_for_system_ready():
 
 
 def execute_feature():
-    print(f"Executing feature tag: {FEATURE_TAG}")
-    payload = {"params": [FEATURE_TAG]}
+    tag = FEATURE_TAG.lstrip("@")   # remove leading @ if present
+    print(f"Executing feature tag: {tag}")
+    payload = {"params": tag}
     try:
         res = requests.post(EXECUTE_URL, headers=headers, json=payload, timeout=30)
         res.raise_for_status()
