@@ -82,8 +82,9 @@ def wait_for_system_ready():
 
 
 def execute_feature():
-    print(f"Executing feature tag: {FEATURE_TAG}")
-    payload = {"params": FEATURE_TAG}
+    tag = FEATURE_TAG.lstrip("@") 
+    print(f"Executing feature tag: {tag}")
+    payload = {"params": tag}
     try:
         res = requests.post(EXECUTE_URL, headers=headers, json=payload, timeout=30)
         res.raise_for_status()
