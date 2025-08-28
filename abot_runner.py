@@ -51,7 +51,7 @@ def update_config():
         payload2 = {
             "update": {
                 "ABOT.TESTBED": "file:IOSMCN/testbeds/testbed-5G-IOSMCN.properties",
-                "LOAD_SWITCH": "off"
+                "LOAD_SWITCH": "off",
                 # ⬇ Add Core IP update here
                 "ABOT.CORE.IP": "10.176.26.58"
             }
@@ -156,23 +156,27 @@ def get_summary(folder):
 def check_result(summary):
     """Check whether execution passed or failed based on summary JSON."""
     try:
-        # Assuming summary has 'data' with pass/fail counts
         if "data" in summary and isinstance(summary["data"], list):
             for item in summary["data"]:
                 if item.get("Status", "").lower() == "fail":
                     print("❌ Test failed")
+                    with open("test_failed.txt", "w") as f:
+                        f.write("One or more ABot tests failed\n")
                     return False
             print("✔ All tests passed")
             return True
         else:
             print("⚠ Summary format unexpected, marking as failed")
+            with open("test_failed.txt", "w") as f:
+                f.write("Summary format unexpected\n")
             return False
     except Exception as e:
         print(f"⚠ check_result error: {e}")
+        with open("test_failed.txt", "w") as f:
+            f.write("check_result error\n")
         return False
-        if not passed:
-            with open("test_failed.txt", "w") as f:
-                 f.write("One or more ABot tests failed\n")
+
+
 
 
 
