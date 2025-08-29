@@ -122,47 +122,81 @@ def poll_status():
 def get_artifact_folder():
     print("Fetching artifact folder...")
     
-    # First, try to get the latest artifact using the dedicated endpoint
-    try:
-        res = requests.get(LATEST_ARTIFACT_URL, headers=headers, timeout=30)
-        if res.status_code == 200:
-            latest_data = res.json()
-            if latest_data.get("data"):
-                latest_folder = latest_data["data"]
-                if FEATURE_TAG in latest_folder or any(tag_part in latest_folder for tag_part in FEATURE_TAG.split("-")):
-                    print(f"✔ Latest artifact folder: {latest_folder}")
-                    return latest_folder
-    except Exception as e:
-        print(f"⚠ Could not fetch latest artifact: {e}")
-    
-    # Fallback to the original method with more lenient matching
-    for attempt in range(20):
+    # Try multiple approaches to find the artifact
+    for attempt in range(30):  # Increased attempts
         try:
+            # Method 1: Try latest artifact endpoint
+            try:
+                res = requests.get(LATEST_ARTIFACT_URL, headers=headers, timeout=30)
+                if res.status_code == 200:
+                    latest_data = res.json()
+                    if latest_data.get("data"):
+                        latest_folder = latest_data["data"]
+                        # Debug: Print what we got
+                        if attempt == 0:
+                            print(f"Debug: Latest artifact from API: '{latest_folder}'")
+                        
+                        # Check for exact match first
+                        if FEATURE_TAG in latest_folder:
+                            print(f"✔ Latest artifact folder: {latest_folder}")
+                            return latest_folder
+                        # Check for close match
+                        elif ("5gs-initial-registration" in latest_folder and 
+                              ("with-integrity-and-ciphering" in latest_folder or "sdcore" in latest_folder)):
+                            print(f"⚠ Latest folder '{latest_folder}' does not exactly contain tag '{FEATURE_TAG}', using it anyway.")
+                            print(f"✔ Latest artifact folder: {latest_folder}")
+                            return latest_folder
+                        elif attempt == 0:
+                            print(f"Debug: Latest folder doesn't match our pattern: '{latest_folder}'")
+            except Exception as e:
+                if attempt == 0:
+                    print(f"⚠ Latest artifact endpoint failed: {e}")
+
+            # Method 2: List all artifacts and find matches
             res = requests.get(ARTIFACT_URL, headers=headers, timeout=30)
             res.raise_for_status()
-            all_data = res.json().get("data", [])
+            response_data = res.json()
+            all_data = response_data.get("data", [])
+            
+            # Debug: Print raw response structure on first attempt
+            if attempt == 0:
+                print(f"Debug: Artifacts API response keys: {list(response_data.keys())}")
+                print(f"Debug: Found {len(all_data)} total artifacts in 'data' field")
+                
+                # Show some sample artifacts to understand structure
+                sample_count = min(3, len(all_data))
+                for i, item in enumerate(all_data[-sample_count:]):
+                    print(f"Debug: Sample artifact {i+1}: {item}")
 
             matching = []
             for item in all_data:
+                label = ""
                 if isinstance(item, dict):
                     label = item.get("label", "")
-                    # More lenient matching - check for any part of the feature tag
-                    if (FEATURE_TAG in label or 
-                        any(tag_part in label for tag_part in FEATURE_TAG.split("-")) or
-                        "5gs-initial-registration" in label):
-                        matching.append(item)
                 elif isinstance(item, str):
-                    if (FEATURE_TAG in item or 
-                        any(tag_part in item for tag_part in FEATURE_TAG.split("-")) or
-                        "5gs-initial-registration" in item):
-                        matching.append({"label": item, "epoch_time": 0})
+                    label = item
+                    item = {"label": label, "epoch_time": 0}
+                
+                # Look for artifacts that match our feature (be more aggressive in matching)
+                if (FEATURE_TAG in label or 
+                    ("5gs-initial-registration" in label and "with-integrity-and-ciphering" in label) or
+                    ("5gs-initial-registration" in label and "sdcore" in label)):
+                    matching.append(item)
+                    if attempt == 0:
+                        print(f"Debug: Found matching artifact: {label}")
 
             if matching:
-                folder = sorted(matching, key=lambda x: x.get("epoch_time", 0))[-1]
-                print(f"✔ Found matching artifact: {folder['label']}")
-                return folder["label"]
+                # Sort by epoch_time and get the most recent
+                folder_item = sorted(matching, key=lambda x: x.get("epoch_time", 0))[-1]
+                folder_name = folder_item.get("label", folder_item) if isinstance(folder_item, dict) else folder_item
+                
+                if FEATURE_TAG not in folder_name:
+                    print(f"⚠ Found folder '{folder_name}' does not exactly contain tag '{FEATURE_TAG}', using it anyway.")
+                
+                print(f"✔ Latest artifact folder: {folder_name}")
+                return folder_name
 
-            print(f"⚠ No artifact yet for tag {FEATURE_TAG}, retrying...")
+            print(f"⚠ No artifact yet for tag {FEATURE_TAG}, retrying... (attempt {attempt+1}/30)")
             time.sleep(10)
             
         except Exception as e:
@@ -170,7 +204,8 @@ def get_artifact_folder():
             time.sleep(10)
 
     print("❌ Could not find matching artifact folder for this tag.")
-    sys.exit(1)
+    # Don't exit - let the workflow continue to see if we can get more info
+    return None
 
 
 def download_artifact(folder: str):
@@ -241,6 +276,43 @@ def check_result(summary: dict) -> bool:
         return False
 
 
+def print_failure_analysis(summary: dict):
+    """Print detailed failure analysis"""
+    print("=== Failure Analysis ===")
+    try:
+        features = summary.get("feature_summary", {}).get("result", {}).get("data", [])
+        total_steps = summary.get("feature_summary", {}).get("result", {}).get("totalSteps", {})
+        
+        if features:
+            for f in features:
+                feature_name = f.get("featureName", "Unknown")
+                scenario_name = f.get("scenarioName", "Unknown scenario")
+                steps = f.get("steps", {})
+                feature_status = f.get("features", {}).get("status", "unknown")
+                duration = f.get("features", {}).get("duration", 0)
+                
+                print(f"\nFeature: {feature_name}")
+                print(f"Scenario: {scenario_name}")
+                print(f"Status: {feature_status}")
+                print(f"Duration: {duration:.2f} seconds")
+                print(f"Steps - Passed: {steps.get('passed', 0)}, Failed: {steps.get('failed', 0)}, Skipped: {steps.get('skipped', 0)}")
+                
+                if f.get("passed_with_Error", False):
+                    print("⚠ Feature passed but with errors")
+        
+        # Print overall statistics
+        if total_steps:
+            passed_pct = total_steps.get("totalStepsPassed", {}).get("totalStepsPassedPercentage", 0)
+            failed_pct = total_steps.get("totalStepsFailed", {}).get("totalStepsFailedPercentage", 0) 
+            skipped_pct = total_steps.get("totalStepsSkipped", {}).get("totalStepsSkippedPercentage", 0)
+            
+            print(f"\nOverall Results:")
+            print(f"Passed: {passed_pct:.1f}%, Failed: {failed_pct:.1f}%, Skipped: {skipped_pct:.1f}%")
+            
+    except Exception as e:
+        print(f"⚠ Error in failure analysis: {e}")
+
+
 def print_logs_info(folder: str):
     """Print logs information like in the expected output"""
     if folder:
@@ -256,15 +328,23 @@ if __name__ == "__main__":
         execute_feature()
         poll_status()
         folder = get_artifact_folder()
-        download_artifact(folder)
-        summary = get_summary(folder)
-        test_passed = check_result(summary)
-        print_logs_info(folder)
-
-        # save artifact path for GitHub Actions
         if folder:
+            download_artifact(folder)
+            summary = get_summary(folder)
+            test_passed = check_result(summary)
+            
+            # Add failure analysis if tests failed
+            if not test_passed:
+                print_failure_analysis(summary)
+            
+            print_logs_info(folder)
+            
+            # save artifact path for GitHub Actions
             with open("artifact_path.txt", "w") as f:
                 f.write(str(folder))
+        else:
+            print("❌ No artifact folder found, cannot proceed with summary and downloads.")
+            test_passed = False
 
         print("=== ABot Test Automation Completed ===")
         sys.exit(0 if test_passed else 1)
