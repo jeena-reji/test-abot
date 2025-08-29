@@ -10,7 +10,7 @@ LOGIN_URL = f"{ABOT_URL}/abot/api/v5/login"
 CONFIG_URL = f"{ABOT_URL}/abot/api/v5/update_config_properties"
 EXECUTE_URL = f"{ABOT_URL}/abot/api/v5/feature_files/execute"
 STATUS_URL = f"{ABOT_URL}/abot/api/v5/execution_status"
-ARTIFACT_URL = f"{ABOT_URL}/abot/api/v5/latest_artifact_name"
+ARTIFACT_URL = f"{ABOT_URL}/abot/api/v5/artifacts"
 SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary"
 
 # Credentials and feature tag
@@ -139,16 +139,18 @@ def get_artifact_folder():
     for _ in range(20):  # retry 20 times with wait
         res = requests.get(ARTIFACT_URL, headers=headers, timeout=30)
         res.raise_for_status()
-        all_folders = res.json()["data"]  # assumes API returns a list of artifact folders
+        json_data = res.json()
+        all_data = json_data.get("data", []) # assumes API returns a list of artifact folders
 
         # filter by FEATURE_TAG
-        matching = [f for f in all_folders if FEATURE_TAG in f]
+        matching = [item for item in all_data if FEATURE_TAG in item.get("label", "")]
 
         if matching:
             # pick the latest one (sorted by timestamp prefix)
-            folder = sorted(matching)[-1]
-            print(f"✔ Found matching artifact folder: {folder}")
-            return folder
+            folder = sorted(matching, key=lambda x: x.get("epoch_time", 0))[-1]
+            label = folder.get("label")
+            print(f"✔ Found matching artifact: {label}")
+            return label
 
         print(f"⚠ No artifact yet for tag {FEATURE_TAG}, retrying...")
         time.sleep(10)
