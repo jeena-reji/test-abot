@@ -134,31 +134,28 @@ def poll_status():
             print(f"⚠ Status check failed: {e}")
         time.sleep(10)
 
-def get_artifact_folder(max_retries: int = 6, wait_seconds: int = 5):
-    """Get latest artifact folder. Retry briefly because the folder can lag execution completion."""
-    for attempt in range(1, max_retries + 1):
-        try:
-            res = requests.get(ARTIFACT_URL, headers=headers, timeout=30)
-            res.raise_for_status()
-            data = res.json().get("data", {})
-            folder = data.get("latest_artifact_timestamp")
+def get_artifact_folder():
+    print("Fetching artifact folder...")
+    for _ in range(20):  # retry 20 times with wait
+        res = requests.get(ARTIFACT_URL, headers=headers, timeout=30)
+        res.raise_for_status()
+        all_folders = res.json()["data"]  # assumes API returns a list of artifact folders
 
-            if not folder:
-                raise ValueError(f"latest_artifact_timestamp missing in response: {res.text}")
+        # filter by FEATURE_TAG
+        matching = [f for f in all_folders if FEATURE_TAG in f]
 
-            if FEATURE_TAG not in folder:
-                print(f"⚠ Latest folder '{folder}' does not exactly contain tag '{FEATURE_TAG}', using it anyway.")
-
-            print(f"✔ Latest artifact folder: {folder}")
+        if matching:
+            # pick the latest one (sorted by timestamp prefix)
+            folder = sorted(matching)[-1]
+            print(f"✔ Found matching artifact folder: {folder}")
             return folder
 
-        except Exception as e:
-            print(f"⚠ Attempt {attempt}/{max_retries} to fetch artifact folder failed: {e}")
-            if attempt < max_retries:
-                time.sleep(wait_seconds)
-            else:
-                print("❌ Could not retrieve artifact folder after retries.")
-                sys.exit(1)
+        print(f"⚠ No artifact yet for tag {FEATURE_TAG}, retrying...")
+        time.sleep(10)
+
+    print("❌ Could not find matching artifact folder for this tag.")
+    sys.exit(1)
+
 
 
 
