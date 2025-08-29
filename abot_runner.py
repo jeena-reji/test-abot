@@ -105,7 +105,6 @@ def poll_status():
         time.sleep(10)
 
 
-# ✅ New simplified artifact fetcher
 def fetch_artifact_id():
     print("Fetching artifact id for this execution...")
     for attempt in range(30):
@@ -114,19 +113,18 @@ def fetch_artifact_id():
         data = resp.json()
         print(f"Debug: /latest_artifact_name response: {json.dumps(data, indent=2)}")
 
-        artifact_id = data.get("artifactId") or data.get("data")
-        if artifact_id:
-            # Check that it matches our tag
-            if f"@{FEATURE_TAG}" in artifact_id:
-                print(f"✔ Found matching artifact id: {artifact_id}")
-                return artifact_id
-            else:
-                print(f"⚠ Latest artifact does not match tag {FEATURE_TAG}, retrying...")
+        # ✅ Extract the latest artifact folder correctly
+        artifact_folder = data.get("data", {}).get("latest_artifact_timestamp")
+        if artifact_folder:
+            print(f"✔ Found matching artifact folder: {artifact_folder}")
+            return artifact_folder
 
+        print(f"⚠ No artifact yet, retrying... (attempt {attempt+1}/30)")
         time.sleep(10)
 
-    print("❌ Could not fetch artifact id in time")
+    print("❌ Could not fetch artifact folder in time")
     return None
+
 
 
 def fetch_summary(folder):
