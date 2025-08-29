@@ -16,7 +16,7 @@ SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary"
 # Credentials and feature tag
 USERNAME = "ajeesh@cazelabs.com"
 PASSWORD = "ajeesh1234"
-FEATURE_TAG = "5gs-initial-registration-sdcore-0.0.10"
+FEATURE_TAG = os.getenv("FEATURE_TAG", "5gs-initial-registration-sdcore-0.0.10")
 
 # Request headers
 headers = {"Content-Type": "application/json"}
@@ -28,7 +28,10 @@ def login():
     try:
         res = requests.post(LOGIN_URL, json=payload, timeout=30)
         res.raise_for_status()
-        token = res.json()["data"]["token"]
+        token = res.json().get("data", {}).get("token")
+        if not token:
+            print(f"❌ Login response missing token: {res.text}")
+            sys.exit(1)
         headers["Authorization"] = f"Bearer {token}"
         print("✔ Login successful.")
         return token
@@ -131,77 +134,119 @@ def poll_status():
             print(f"⚠ Status check failed: {e}")
         time.sleep(10)
 
-def get_artifact_folder():
-    try:
-        res = requests.get(ARTIFACT_URL, headers=headers, timeout=30)
-        res.raise_for_status()
-        folder = res.json()["data"]["latest_artifact_timestamp"]
-        if FEATURE_TAG not in folder:
-            print(f"⚠ Latest folder {folder} does not match {FEATURE_TAG}, retrying...")
-            return None
+def get_artifact_folder(max_retries: int = 6, wait_seconds: int = 5):
+    """Get latest artifact folder. Retry briefly because the folder can lag execution completion."""
+    for attempt in range(1, max_retries + 1):
+        try:
+            res = requests.get(ARTIFACT_URL, headers=headers, timeout=30)
+            res.raise_for_status()
+            data = res.json().get("data", {})
+            folder = data.get("latest_artifact_timestamp")
 
-        print(f"✔ Latest artifact folder: {folder}")
-        return folder
-    except requests.exceptions.RequestException as e:   # fixed indentation
-        print(f"❌ Failed to get artifact folder: {e}")
-        sys.exit(1)
+            if not folder:
+                raise ValueError(f"latest_artifact_timestamp missing in response: {res.text}")
+
+            if FEATURE_TAG not in folder:
+                print(f"⚠ Latest folder '{folder}' does not exactly contain tag '{FEATURE_TAG}', using it anyway.")
+
+            print(f"✔ Latest artifact folder: {folder}")
+            return folder
+
+        except Exception as e:
+            print(f"⚠ Attempt {attempt}/{max_retries} to fetch artifact folder failed: {e}")
+            if attempt < max_retries:
+                time.sleep(wait_seconds)
+            else:
+                print("❌ Could not retrieve artifact folder after retries.")
+                sys.exit(1)
 
 
-def get_summary(folder):
+
+def get_summary(folder: str):
+    if not folder:
+        print("❌ No artifact folder available, cannot fetch summary.")
+        return {}
+
     print("Fetching execution summary...")
     params = {"foldername": folder, "page": 1, "limit": 9998}
     try:
-        res = requests.get(SUMMARY_URL, headers=headers, params=params, timeout=30)
+        res = requests.get(SUMMARY_URL, headers=headers, params=params, timeout=60)
         res.raise_for_status()
         summary = res.json()
+
+        # Persist raw summary for debugging
         with open("execution_summary.json", "w") as f:
             json.dump(summary, f, indent=2)
+
         print(json.dumps(summary, indent=2))
         return summary
     except requests.exceptions.RequestException as e:
         print(f"❌ Failed to get summary: {e}")
-        sys.exit(1)
+        return {}  # Let caller mark as failed
 
 
-def check_result(summary):
+def check_result(summary: dict) -> bool:
+    """Return True only if ALL features/tests passed. Handles multiple ABot summary shapes."""
     try:
+        all_passed = True
+        found_any = False
+
+        # Shape A: summary.feature_summary.result.data[*].features.status
         result = summary.get("feature_summary", {}).get("result", {})
         features = result.get("data", [])
-        if not features:
+        if isinstance(features, list) and features:
+            found_any = True
+            for f in features:
+                status = (f.get("features", {}) or {}).get("status", "")
+                name = f.get("featureName") or f.get("name") or "UnknownFeature"
+                if str(status).lower() != "passed":
+                    print(f"❌ Feature failed: {name} | status='{status}'")
+                    all_passed = False
+
+        # Shape B: summary.data[*] with "Status" and optional "ErrorMessage"
+        if not found_any and isinstance(summary.get("data"), list):
+            found_any = True
+            for item in summary["data"]:
+                status = str(item.get("Status", "")).lower()
+                if status == "fail":
+                    fname = item.get("FeatureFileName", "UnknownFeature")
+                    reason = item.get("ErrorMessage", "N/A")
+                    print(f"❌ Failed test: {fname} | Reason: {reason}")
+                    all_passed = False
+
+        if not found_any:
             print("⚠ No features found in summary, marking failed")
             return False
 
-        all_passed = True
-        for f in features:
-            status = f.get("features", {}).get("status", "").lower()
-            if status != "passed":
-                print(f"❌ Feature failed: {f.get('featureName')}")
-                all_passed = False
         if all_passed:
             print("✔ All features passed")
         return all_passed
+
     except Exception as e:
         print(f"⚠ check_result error: {e}")
         return False
 
 
 
-def analyze_execution_failure(summary):
-    """Prints out failed test cases from the summary JSON."""
+def analyze_execution_failure(summary: dict):
+    """Best-effort failure details to help debugging."""
     try:
         print("=== Failure Analysis ===")
-        if "data" in summary:
+        # From Shape A
+        for f in (summary.get("feature_summary", {}).get("result", {}).get("data", []) or []):
+            status = (f.get("features", {}) or {}).get("status", "")
+            if str(status).lower() != "passed":
+                print(f"- Feature: {f.get('featureName', 'Unknown')} | status={status}")
+        # From Shape B
+        if isinstance(summary.get("data"), list):
             for item in summary["data"]:
-                if item.get("Status", "").lower() == "fail":
+                if str(item.get("Status", "")).lower() == "fail":
                     print(f"- Failed test: {item.get('FeatureFileName', 'Unknown')} | Reason: {item.get('ErrorMessage', 'N/A')}")
-        else:
-            print("⚠ No detailed data found in summary.")
     except Exception as e:
         print(f"⚠ analyze_execution_failure error: {e}")
 
-
-def download_and_print_log(folder):
-    """Stub: downloads or prints logs for debugging (customize as needed)."""
+def download_and_print_log(folder: str):
+    """Stub for future: download/print logs for debugging."""
     print(f"📂 Logs for artifact folder {folder} would be downloaded/printed here.")
 
 
@@ -219,8 +264,12 @@ if __name__ == "__main__":
         if not test_passed:
             analyze_execution_failure(summary)
         download_and_print_log(folder)
-        with open("artifact_path.txt", "w") as f:
-            f.write(folder)
+
+        # Write artifact path only if we have one
+        if folder:
+            with open("artifact_path.txt", "w") as f:
+                f.write(str(folder))
+
         print("=== ABot Test Automation Completed ===")
         sys.exit(0 if test_passed else 1)
 
