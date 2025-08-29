@@ -11,6 +11,8 @@ CONFIG_URL = f"{ABOT_URL}/abot/api/v5/update_config_properties"
 EXECUTE_URL = f"{ABOT_URL}/abot/api/v5/feature_files/execute"
 STATUS_URL = f"{ABOT_URL}/abot/api/v5/execution_status"
 ARTIFACT_URL = f"{ABOT_URL}/abot/api/v5/artifacts"
+LATEST_ARTIFACT_URL = f"{ABOT_URL}/abot/api/v5/latest_artifact_name"
+ARTIFACT_DOWNLOAD_URL = f"{ABOT_URL}/abot/api/v5/artifacts/download"
 SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary"
 
 # Credentials and feature tag
@@ -159,6 +161,47 @@ def get_artifact_folder():
     sys.exit(1)
 
 
+LATEST_ARTIFACT_URL = f"{ABOT_URL}/abot/api/v5/latest_artifact_name"
+ARTIFACT_DOWNLOAD_URL = f"{ABOT_URL}/abot/api/v5/artifacts/download"
+
+def get_latest_artifact():
+    print("Fetching latest artifact info...")
+    try:
+        res = requests.get(LATEST_ARTIFACT_URL, headers=headers, timeout=30)
+        res.raise_for_status()
+        data = res.json().get("data", {})
+        artifact_path = data.get("artifact_path") or data.get("artifactName") or data.get("path")
+        if artifact_path:
+            print(f"✔ Latest artifact path: {artifact_path}")
+            return artifact_path
+        else:
+            print(f"❌ No artifact path in response: {data}")
+            return None
+    except Exception as e:
+        print(f"❌ Failed to fetch latest artifact: {e}")
+        return None
+
+def download_artifact(artifact_path: str):
+    if not artifact_path:
+        print("❌ No artifact path provided, cannot download.")
+        return
+
+    print(f"Downloading artifact for path: {artifact_path}")
+    try:
+        params = {"path": artifact_path}
+        res = requests.get(ARTIFACT_DOWNLOAD_URL, headers=headers, params=params, timeout=120, stream=True)
+        res.raise_for_status()
+        out_file = "artifact.zip"
+        with open(out_file, "wb") as f:
+            for chunk in res.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+        print(f"✔ Artifact downloaded and saved as {out_file}")
+    except Exception as e:
+        print(f"❌ Failed to download artifact: {e}")
+
+
+
 
 
 def get_summary(folder: str):
@@ -257,17 +300,21 @@ if __name__ == "__main__":
         wait_for_system_ready()
         execute_feature()
         poll_status()
+
         folder = get_artifact_folder()
+        artifact_path = get_latest_artifact()
+        download_artifact(artifact_path)
+
         summary = get_summary(folder)
+
         test_passed = check_result(summary)
         if not test_passed:
             analyze_execution_failure(summary)
         download_and_print_log(folder)
 
-        # Write artifact path only if we have one
         if folder:
             with open("artifact_path.txt", "w") as f:
-                f.write(str(folder))
+                f.write(folder)
 
         print("=== ABot Test Automation Completed ===")
         sys.exit(0 if test_passed else 1)
