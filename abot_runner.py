@@ -177,7 +177,7 @@ def check_result(summary, folder):
 
         if status != "passed":
             all_passed = False
-            failed_features.append((f)
+            failed_features.append((f))
 
     # Print detailed summary JSON (for debugging/reference)
     print(json.dumps(result, indent=2))
