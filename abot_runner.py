@@ -105,21 +105,31 @@ def poll_status():
             res = requests.get(STATUS_URL, headers=headers, timeout=30)
             res.raise_for_status()
             json_data = res.json()
-            print(json.dumps(json_data, indent=2))
-
             exec_info = json_data.get("executing", {})
-            statuses = exec_info.get("execution_status", [])
 
-            # Look for explicit "execution completed"
+
+            # ✅ Filter only executions matching FEATURE_TAG
+            executing_list = exec_info.get("executing", [])
+            filtered_execs = [e for e in executing_list if FEATURE_TAG in e.get("name", "")]
+            
+            
+            statuses = exec_info.get("execution_status", [])
+            
+            
+            print("Execution status for current tag:")
+            print(json.dumps(filtered_execs, indent=2))
+            print(json.dumps(statuses, indent=2))
+            
+            
             if any(s["name"] == "execution completed" and s["status"] == 1 for s in statuses):
                 print("✔ ABot reports execution completed.")
                 return
-
+            
+            
             print("Still running in ABot... waiting 10s")
         except Exception as e:
             print(f"⚠ Status check failed: {e}")
         time.sleep(10)
-
 
 
 def get_artifact_folder():
@@ -127,9 +137,14 @@ def get_artifact_folder():
         res = requests.get(ARTIFACT_URL, headers=headers, timeout=30)
         res.raise_for_status()
         folder = res.json()["data"]["latest_artifact_timestamp"]
+        if FEATURE_TAG not in folder:
+            print(f"⚠ Latest folder {folder} does not match {FEATURE_TAG}, retrying...")
+            return None
+
+
         print(f"✔ Latest artifact folder: {folder}")
         return folder
-    except requests.exceptions.RequestException as e:
+     except requests.exceptions.RequestException as e:
         print(f"❌ Failed to get artifact folder: {e}")
         sys.exit(1)
 
