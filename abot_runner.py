@@ -136,7 +136,7 @@ def fetch_summary(folder):
     summary = resp.json()
     print("Summary response:", json.dumps(summary, indent=2))
     return summary
-y
+
 
 def check_result(summary, folder):
     print("=== Result Check ===")
