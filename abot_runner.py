@@ -90,24 +90,22 @@ def poll_status():
         executing_list = exec_info.get("executing", [])
         statuses = exec_info.get("execution_status", [])
 
-        filtered_execs = [e for e in executing_list if FEATURE_TAG in e.get("name", "")]
+        # ✅ Only print relevant block for this execution
+        print("Filtered execution status:")
+        filtered_statuses = []
+        for s in statuses:
+            # Some steps might have the feature file name including the tag or feature name
+            if FEATURE_TAG in s.get("name", "") or s.get("name", "").endswith(".feature") or "execution completed" in s.get("name", ""):
+                filtered_statuses.append(s)
         
-        print("Execution status for current tag:")
-        if filtered_execs:
-            print(json.dumps(filtered_execs, indent=2))
-        else:
-            print("[]")
-        print(json.dumps(statuses, indent=2))
-
-        if any(s["name"] == "execution completed" and s["status"] == 1 for s in statuses):
-            print("✔ ABot reports execution completed.")
+        print(json.dumps(filtered_statuses, indent=2))
+        
+        if any(s["name"] == "execution completed" and s["status"] == 1 for s in filtered_statuses):
+            print("✔ ABot reports execution completed for current tag.")
             print("Waiting for artifacts to be generated...")
             time.sleep(15)
-            return True   # ✅ ensure True when done
+            return True
 
-        print("Still running in ABot... waiting 10s")
-        time.sleep(10)
-    return False   # ✅ fallback
 
 
 def find_artifact_folder(artifacts, feature_tag):
@@ -125,9 +123,11 @@ def find_artifact_folder(artifacts, feature_tag):
 
         print(f"Debug: Checking artifact folder '{folder_name}'")
 
-        if folder_name.endswith(feature_tag):
+        # ✅ ABot artifact format: <date-time>@<tag>
+        if f"@{feature_tag}" in folder_name:
             print(f"✔ Found matching artifact folder: {folder_name}")
             return folder_name
+
     return None
 
 
