@@ -177,7 +177,7 @@ def check_result(summary, folder):
 
         if status != "passed":
             all_passed = False
-            failed_features.append((feature_name, status))
+            failed_features.append((f)
 
     # Print detailed summary JSON (for debugging/reference)
     print(json.dumps(result, indent=2))
@@ -186,8 +186,17 @@ def check_result(summary, folder):
     if failed_features:
         print("❌ Some features FAILED ❌")
         print("=== Failure Analysis ===")
-        for name, status in failed_features:
+        for f in failed_features:
+            name = f.get("featureName", "UNKNOWN")
+            status = f.get("features", {}).get("status", "unknown")
+
+            steps = f.get("steps", {})
+            scenarios = f.get("scenario", {})
+
             print(f"- Feature: {name} | status={status}")
+            print(f"  Steps → passed={steps.get('passed', 0)}, failed={steps.get('failed', 0)}, skipped={steps.get('skipped', 0)}, total={steps.get('total', 0)}")
+            print(f"  Scenarios → passed={scenarios.get('passed', 0)}, failed={scenarios.get('failed', 0)}, total={scenarios.get('total', 0)}")
+
         print(f"📂 Logs for artifact folder {folder} would be downloaded/printed here.")
     else:
         print("✔ All features PASSED ✅")
