@@ -3,7 +3,7 @@ import time
 import sys
 import json
 import os
-from requests.utils import quote
+from requests.utils import quote_plus
 
 # ABot endpoints
 ABOT_URL = "http://10.176.27.73/abotrest"
@@ -130,7 +130,8 @@ def fetch_artifact_id():
 
 def fetch_summary(folder):
     print("Fetching execution summary...")
-    safe_folder = quote(folder, safe='')  # encode all special characters
+    # Only encode special characters like : and @
+    safe_folder = quote_plus(folder)  # encode ':' as %3A and '@' as %40
     resp = requests.get(SUMMARY_URL, headers=headers, params={"artifact_folder": safe_folder}, timeout=30)
     resp.raise_for_status()
     summary = resp.json()
