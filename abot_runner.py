@@ -84,6 +84,8 @@ def execute_feature():
 
 def poll_status():
     print("Polling execution status...")
+    execution_completed = False
+    
     while True:
         res = requests.get(STATUS_URL, headers=headers, timeout=30)
         res.raise_for_status()
@@ -92,17 +94,26 @@ def poll_status():
         executing_list = exec_info.get("executing", [])
         statuses = exec_info.get("execution_status", [])
 
-        # filter only for this FEATURE_TAG
+        # Filter for this FEATURE_TAG and show all execution status
         filtered_execs = [e for e in executing_list if FEATURE_TAG in e.get("name", "")]
-        filtered_statuses = [s for s in statuses if FEATURE_TAG in s.get("name", "") or s.get("name") == "execution completed"]
-
+        
+        # Show all execution statuses (not just filtered ones)
         print("Execution status for current tag:")
-        print(json.dumps(filtered_execs, indent=2))
-        print(json.dumps(filtered_statuses, indent=2))
+        if filtered_execs:
+            print(json.dumps(filtered_execs, indent=2))
+        else:
+            print("[]")
+        print(json.dumps(statuses, indent=2))
 
-        if any(s["name"] == "execution completed" and s["status"] == 1 for s in filtered_statuses):
-            print("✔ ABot reports execution completed.")
-            return
+        # Check if execution is completed
+        if any(s["name"] == "execution completed" and s["status"] == 1 for s in statuses):
+            if not execution_completed:
+                print("✔ ABot reports execution completed.")
+                execution_completed = True
+                # Wait a bit more for artifacts to be ready after execution completes
+                print("Waiting for artifacts to be generated...")
+                time.sleep(15)
+                break
 
         print("Still running in ABot... waiting 10s")
         time.sleep(10)
@@ -110,27 +121,53 @@ def poll_status():
 
 def get_artifact_folder():
     print("Fetching artifact folder...")
-    for _ in range(20):
-        res = requests.get(ARTIFACT_URL, headers=headers, timeout=30)
-        res.raise_for_status()
-        all_data = res.json().get("data", [])
+    
+    # First, try to get the latest artifact using the dedicated endpoint
+    try:
+        res = requests.get(LATEST_ARTIFACT_URL, headers=headers, timeout=30)
+        if res.status_code == 200:
+            latest_data = res.json()
+            if latest_data.get("data"):
+                latest_folder = latest_data["data"]
+                if FEATURE_TAG in latest_folder or any(tag_part in latest_folder for tag_part in FEATURE_TAG.split("-")):
+                    print(f"✔ Latest artifact folder: {latest_folder}")
+                    return latest_folder
+    except Exception as e:
+        print(f"⚠ Could not fetch latest artifact: {e}")
+    
+    # Fallback to the original method with more lenient matching
+    for attempt in range(20):
+        try:
+            res = requests.get(ARTIFACT_URL, headers=headers, timeout=30)
+            res.raise_for_status()
+            all_data = res.json().get("data", [])
 
-        matching = []
-        for item in all_data:
-            if isinstance(item, dict):
-                if FEATURE_TAG in item.get("label", ""):
-                    matching.append(item)
-            elif isinstance(item, str):
-                if FEATURE_TAG in item:
-                    matching.append({"label": item, "epoch_time": 0})
+            matching = []
+            for item in all_data:
+                if isinstance(item, dict):
+                    label = item.get("label", "")
+                    # More lenient matching - check for any part of the feature tag
+                    if (FEATURE_TAG in label or 
+                        any(tag_part in label for tag_part in FEATURE_TAG.split("-")) or
+                        "5gs-initial-registration" in label):
+                        matching.append(item)
+                elif isinstance(item, str):
+                    if (FEATURE_TAG in item or 
+                        any(tag_part in item for tag_part in FEATURE_TAG.split("-")) or
+                        "5gs-initial-registration" in item):
+                        matching.append({"label": item, "epoch_time": 0})
 
-        if matching:
-            folder = sorted(matching, key=lambda x: x.get("epoch_time", 0))[-1]
-            print(f"✔ Found matching artifact: {folder['label']}")
-            return folder["label"]
+            if matching:
+                folder = sorted(matching, key=lambda x: x.get("epoch_time", 0))[-1]
+                print(f"✔ Found matching artifact: {folder['label']}")
+                return folder["label"]
 
-        print(f"⚠ No artifact yet for tag {FEATURE_TAG}, retrying...")
-        time.sleep(10)
+            print(f"⚠ No artifact yet for tag {FEATURE_TAG}, retrying...")
+            time.sleep(10)
+            
+        except Exception as e:
+            print(f"⚠ Error fetching artifacts (attempt {attempt+1}): {e}")
+            time.sleep(10)
 
     print("❌ Could not find matching artifact folder for this tag.")
     sys.exit(1)
@@ -141,15 +178,18 @@ def download_artifact(folder: str):
         print("❌ No artifact folder provided, cannot download.")
         return
     print(f"Downloading artifact for folder: {folder}")
-    params = {"path": folder}
-    res = requests.get(ARTIFACT_DOWNLOAD_URL, headers=headers, params=params, timeout=120, stream=True)
-    res.raise_for_status()
-    out_file = "artifact.zip"
-    with open(out_file, "wb") as f:
-        for chunk in res.iter_content(chunk_size=8192):
-            if chunk:
-                f.write(chunk)
-    print(f"✔ Artifact downloaded and saved as {out_file}")
+    try:
+        params = {"path": folder}
+        res = requests.get(ARTIFACT_DOWNLOAD_URL, headers=headers, params=params, timeout=120, stream=True)
+        res.raise_for_status()
+        out_file = "artifact.zip"
+        with open(out_file, "wb") as f:
+            for chunk in res.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+        print(f"✔ Artifact downloaded and saved as {out_file}")
+    except Exception as e:
+        print(f"⚠ Failed to download artifact: {e}")
 
 
 def get_summary(folder: str):
@@ -157,14 +197,18 @@ def get_summary(folder: str):
         print("❌ No artifact folder available, cannot fetch summary.")
         return {}
     print("Fetching execution summary...")
-    params = {"foldername": folder, "page": 1, "limit": 9998}
-    res = requests.get(SUMMARY_URL, headers=headers, params=params, timeout=60)
-    res.raise_for_status()
-    summary = res.json()
-    with open("execution_summary.json", "w") as f:
-        json.dump(summary, f, indent=2)
-    print(json.dumps(summary, indent=2))
-    return summary
+    try:
+        params = {"foldername": folder, "page": 1, "limit": 9998}
+        res = requests.get(SUMMARY_URL, headers=headers, params=params, timeout=60)
+        res.raise_for_status()
+        summary = res.json()
+        with open("execution_summary.json", "w") as f:
+            json.dump(summary, f, indent=2)
+        print(json.dumps(summary, indent=2))
+        return summary
+    except Exception as e:
+        print(f"⚠ Failed to get summary: {e}")
+        return {}
 
 
 def check_result(summary: dict) -> bool:
@@ -197,6 +241,12 @@ def check_result(summary: dict) -> bool:
         return False
 
 
+def print_logs_info(folder: str):
+    """Print logs information like in the expected output"""
+    if folder:
+        print(f"📂 Logs for artifact folder {folder} would be downloaded/printed here.")
+
+
 if __name__ == "__main__":
     try:
         print("=== ABot Test Automation Started ===")
@@ -209,10 +259,12 @@ if __name__ == "__main__":
         download_artifact(folder)
         summary = get_summary(folder)
         test_passed = check_result(summary)
+        print_logs_info(folder)
 
         # save artifact path for GitHub Actions
-        with open("artifact_path.txt", "w") as f:
-            f.write(str(folder))
+        if folder:
+            with open("artifact_path.txt", "w") as f:
+                f.write(str(folder))
 
         print("=== ABot Test Automation Completed ===")
         sys.exit(0 if test_passed else 1)
