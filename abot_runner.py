@@ -87,69 +87,45 @@ def poll_status():
         res.raise_for_status()
         exec_info = res.json().get("executing", {})
 
-        executing_list = exec_info.get("executing", [])
         statuses = exec_info.get("execution_status", [])
 
         # ✅ Only print relevant block for this execution
         print("Filtered execution status:")
         filtered_statuses = []
         for s in statuses:
-            # Some steps might have the feature file name including the tag or feature name
             if FEATURE_TAG in s.get("name", "") or s.get("name", "").endswith(".feature") or "execution completed" in s.get("name", ""):
                 filtered_statuses.append(s)
-        
+
         print(json.dumps(filtered_statuses, indent=2))
-        
+
         if any(s["name"] == "execution completed" and s["status"] == 1 for s in filtered_statuses):
             print("✔ ABot reports execution completed for current tag.")
-            print("Waiting for artifacts to be generated...")
-            time.sleep(15)
             return True
 
+        time.sleep(10)
 
 
-def find_artifact_folder(artifacts, feature_tag):
-    for folder in artifacts:
-        folder_name = ""
-        if isinstance(folder, dict):
-            folder_name = (
-                folder.get("latest_artifact_timestamp")
-                or folder.get("label")
-                or folder.get("name")
-                or ""
-            )
-        else:
-            folder_name = str(folder)
-
-        print(f"Debug: Checking artifact folder '{folder_name}'")
-
-        # ✅ ABot artifact format: <date-time>@<tag>
-        if f"@{feature_tag}" in folder_name:
-            print(f"✔ Found matching artifact folder: {folder_name}")
-            return folder_name
-
-    return None
-
-
-def fetch_artifacts():
-    print("Waiting for artifacts to be generated...")
+# ✅ New simplified artifact fetcher
+def fetch_artifact_id():
+    print("Fetching artifact id for this execution...")
     for attempt in range(30):
         resp = requests.get(ARTIFACTS_URL, headers=headers, timeout=30)
         resp.raise_for_status()
         data = resp.json()
-        print(f"Debug: Artifacts API response keys: {list(data.keys())}")
+        print(f"Debug: /latest_artifact_name response: {json.dumps(data, indent=2)}")
 
-        artifacts = data.get("data", [])
-        print(f"Debug: Found {len(artifacts)} total artifacts in 'data' field")
+        artifact_id = data.get("artifactId") or data.get("data")
+        if artifact_id:
+            # Check that it matches our tag
+            if f"@{FEATURE_TAG}" in artifact_id:
+                print(f"✔ Found matching artifact id: {artifact_id}")
+                return artifact_id
+            else:
+                print(f"⚠ Latest artifact does not match tag {FEATURE_TAG}, retrying...")
 
-        folder = find_artifact_folder(artifacts, FEATURE_TAG)
-        if folder:
-            return folder
-
-        print(f"⚠ No artifact yet for tag {FEATURE_TAG}, retrying... (attempt {attempt+1}/30)")
         time.sleep(10)
 
-    print(f"❌ Could not find matching artifact folder for this tag.")
+    print("❌ Could not fetch artifact id in time")
     return None
 
 
@@ -177,12 +153,11 @@ def check_result(summary, folder):
 
         if status != "passed":
             all_passed = False
-            failed_features.append((f))
+            failed_features.append(f)
 
-    # Print detailed summary JSON (for debugging/reference)
+    # Print detailed JSON for reference
     print(json.dumps(result, indent=2))
 
-    # Failure Analysis
     if failed_features:
         print("❌ Some features FAILED ❌")
         print("=== Failure Analysis ===")
@@ -218,9 +193,9 @@ def main():
             print("❌ Execution did not complete in time")
             sys.exit(1)
 
-        folder = fetch_artifacts()
+        folder = fetch_artifact_id()
         if not folder:
-            print("❌ No artifact folder found, cannot proceed with summary.")
+            print("❌ No artifact id found, cannot proceed with summary.")
             sys.exit(1)
 
         summary = fetch_summary(folder)
