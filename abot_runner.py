@@ -197,9 +197,12 @@ def main():
         if not folder:
             print("❌ No artifact id found, cannot proceed with summary.")
             sys.exit(1)
-
+        
+        time.sleep(20)  # Wait 10s to let ABot generate the summary
+        
         summary = fetch_summary(folder)
         test_passed = check_result(summary, folder)
+
 
         if test_passed:
             print("✔ All features PASSED ✅")
