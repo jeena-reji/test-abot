@@ -131,7 +131,6 @@ def poll_status():
             print(f"⚠ Status check failed: {e}")
         time.sleep(10)
 
-
 def get_artifact_folder():
     try:
         res = requests.get(ARTIFACT_URL, headers=headers, timeout=30)
@@ -141,10 +140,9 @@ def get_artifact_folder():
             print(f"⚠ Latest folder {folder} does not match {FEATURE_TAG}, retrying...")
             return None
 
-
         print(f"✔ Latest artifact folder: {folder}")
         return folder
-     except requests.exceptions.RequestException as e:
+    except requests.exceptions.RequestException as e:   # fixed indentation
         print(f"❌ Failed to get artifact folder: {e}")
         sys.exit(1)
 
