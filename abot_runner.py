@@ -10,7 +10,7 @@ LOGIN_URL = f"{ABOT_URL}/abot/api/v5/login"
 CONFIG_URL = f"{ABOT_URL}/abot/api/v5/update_config_properties"
 EXECUTE_URL = f"{ABOT_URL}/abot/api/v5/feature_files/execute"
 STATUS_URL = f"{ABOT_URL}/abot/api/v5/execution_status"
-ARTIFACTS_URL = f"{ABOT_URL}/abot/api/v5/artifacts"
+ARTIFACTS_URL = f"{ABOT_URL}/abot/api/v5/latest_artifact_name"
 SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary"
 
 # Credentials and feature tag
