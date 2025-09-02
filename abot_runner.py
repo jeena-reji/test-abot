@@ -55,41 +55,51 @@ def execute_feature():
     print("Response headers:", res.headers)
     return True
 
-def poll_status(feature_tag):
-    print("Polling execution status ...")
+def resolve_feature_file(feature_tag):
+    """Map the executed tag to its actual feature file name from ABot."""
+    print(f"🔍 Resolving feature file for tag: {feature_tag}")
+    for attempt in range(12):  # wait max 2 mins
+        res = requests.get(DETAIL_STATUS_URL, headers=headers, timeout=30)
+        res.raise_for_status()
+        data = res.json()
+        executing = data.get("executing", {})
+        if executing:
+            print("👉 Currently executing features:", list(executing.keys()))
+            # Pick the first feature file running
+            return list(executing.keys())[0]
+        print("⚠ No execution reported yet, retrying...")
+        time.sleep(10)
+    print("❌ Could not resolve feature file for tag.")
+    return None
+
+def poll_status(feature_tag, feature_file):
+    print(f"Polling execution status for tag {feature_tag} (file: {feature_file})...")
     while True:
         res = requests.get(DETAIL_STATUS_URL, headers=headers, timeout=30)
         res.raise_for_status()
         data = res.json()
         executing = data.get("executing", {})
-        if not executing:
-            print("⚠ No active execution found yet.")
+
+        if feature_file not in executing:
+            print(f"⚠ Feature file {feature_file} not found yet.")
             time.sleep(10)
             continue
 
-        # Only look at this feature
-        matched = {f: s for f, s in executing.items() if feature_tag in f}
-        if not matched:
-            print(f"⚠ Feature {feature_tag} not found in executing list yet.")
-            time.sleep(10)
-            continue
+        scenarios = executing[feature_file]
+        print(f"\n📌 Feature: {feature_file}")
+        for scenario, steps in scenarios.items():
+            print(f"   Scenario: {scenario}")
+            for step in steps:
+                keyword = step.get("keyword")
+                name = step.get("name")
+                status = step.get("status", "unknown").upper()
+                duration = round(step.get("duration", 0), 3)
+                print(f"     [{status}] {keyword} {name} ({duration}s)")
 
-        for feature, scenarios in matched.items():   # ✅ only loop matched
-            print(f"\n📌 Feature: {feature}")
-            for scenario, steps in scenarios.items():
-                print(f"   Scenario: {scenario}")
-                for step in steps:
-                    keyword = step.get("keyword")
-                    name = step.get("name")
-                    status = step.get("status", "unknown").upper()
-                    duration = round(step.get("duration", 0), 3)
-                    print(f"     [{status}] {keyword} {name} ({duration}s)")
-
-        # Check if execution finished
+        # Collect statuses
         all_status = [
             step.get("status", "").lower()
-            for f in matched.values()
-            for s in f.values()
+            for s in scenarios.values()
             for step in s
         ]
         if all_status and (
@@ -100,7 +110,6 @@ def poll_status(feature_tag):
             return True
 
         time.sleep(30)
-
 
 def fetch_artifact_id(feature_tag):   # ✅ accept feature_tag
     print("Fetching artifact id for this execution...")
@@ -124,10 +133,14 @@ def main():
         login()
         update_config()
         execute_feature()
-        poll_status(FEATURE_TAG)          # ✅ pass tag
-        folder = fetch_artifact_id(FEATURE_TAG)  # ✅ pass tag
-        if folder:
-            print(f"📂 Artifact folder: {folder}")
+        feature_file = resolve_feature_file(FEATURE_TAG)
+        if feature_file:
+            poll_status(FEATURE_TAG, feature_file)
+            folder = fetch_artifact_id(FEATURE_TAG)
+            if folder:
+                print(f"📂 Artifact folder: {folder}")
+
+    
     except Exception as e:
         print("❌ ERROR:", str(e))
         sys.exit(1)
