@@ -115,25 +115,22 @@ def poll_status(tag, timeout=1800):  # 30 min timeout
         time.sleep(10)
 
 
-def fetch_artifact_id():
-    print("Fetching artifact id for this execution...")
-    for attempt in range(30):
-        resp = requests.get(ARTIFACTS_URL, headers=headers, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-        print(f"Debug: /latest_artifact_name response: {json.dumps(data, indent=2)}")
-
-        # ✅ Extract the latest artifact folder correctly
-        artifact_folder = data.get("data", {}).get("latest_artifact_timestamp")
-        if artifact_folder:
-            print(f"✔ Found matching artifact folder: {artifact_folder}")
-            return artifact_folder
-
-        print(f"⚠ No artifact yet, retrying... (attempt {attempt+1}/30)")
-        time.sleep(10)
-
-    print("❌ Could not fetch artifact folder in time")
+def fetch_artifact_id(feature_tag, retries=6, delay=10):
+    """Fetch latest artifact folder for given feature tag with retries."""
+    url = f"{ABOT_URL}/abot/api/v5/artifacts/latest_artifact_name?feature={feature_tag}"
+    for attempt in range(retries):
+        resp = SESSION.get(url, verify=False)
+        if resp.status_code == 200:
+            data = resp.json()
+            if "data" in data and data["data"].get("latest_artifact_timestamp"):
+                folder = data["data"]["latest_artifact_timestamp"]
+                print(f"✔ Found matching artifact folder: {folder}")
+                return folder
+        print(f"⚠ Artifact not ready yet (attempt {attempt+1}/{retries}), retrying in {delay}s...")
+        time.sleep(delay)
+    print("❌ No artifact found after retries")
     return None
+
 
 
 
