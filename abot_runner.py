@@ -78,7 +78,8 @@ def execute_feature():
     print("Execution response:", json.dumps(data, indent=2))
     print("Response headers:", res.headers)   # 👈 add this
 
-    return true
+    return True
+
 
 
 def poll_status(exec_id=None):
