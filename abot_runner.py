@@ -76,11 +76,18 @@ def execute_feature():
     res.raise_for_status()
     data = res.json()
     print("Execution response:", json.dumps(data, indent=2))
+    print("Response headers:", res.headers)   # 👈 add this
 
-    exec_id = data.get("executionId") or data.get("data", {}).get("execution_id")
+    # Try extracting execId from either body or headers
+    exec_id = (
+        data.get("executionId")
+        or data.get("data", {}).get("execution_id")
+        or res.headers.get("executionId")
+        or res.headers.get("Execution-Id")
+    )
     if not exec_id:
-        print("❌ No executionId found in response!")
-        sys.exit(1)
+        print("❌ No executionId found in response or headers!")
+        return None
 
     print(f"✔ Captured executionId: {exec_id}")
     return exec_id
