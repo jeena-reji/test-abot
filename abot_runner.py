@@ -11,6 +11,8 @@ CONFIG_URL = f"{ABOT_URL}/abot/api/v5/update_config_properties"
 EXECUTE_URL = f"{ABOT_URL}/abot/api/v5/feature_files/execute"
 ARTIFACTS_URL = f"{ABOT_URL}/abot/api/v5/latest_artifact_name"
 ARTIFACT_SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/artifact_summary"
+EXEC_FEATURE_SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary"
+
 
 # Credentials and feature tag
 USERNAME = "ajeesh@cazelabs.com"
@@ -70,14 +72,14 @@ def fetch_artifact_id(tag):
     print("❌ Could not fetch artifact folder in time")
     return None
 
-def fetch_results_from_artifact(folder):
-    """Fetch executed feature file(s) and scenario results from artifact summary."""
-    url = f"{ARTIFACT_SUMMARY_URL}?artifactId={folder}"
+def fetch_detailed_results(folder):
+    """Fetch executed feature files and scenario results from artifact execFeatureSummary."""
+    url = f"{EXEC_FEATURE_SUMMARY_URL}?artifactId={folder}"
     for attempt in range(20):  # retry up to ~3 minutes
         try:
             res = requests.get(url, headers=headers, timeout=30)
             if res.status_code == 404:
-                print(f"⚠ Artifact summary not ready yet, retrying... (attempt {attempt+1}/20)")
+                print(f"⚠ Detailed artifact summary not ready yet, retrying... (attempt {attempt+1}/20)")
                 time.sleep(10)
                 continue
             res.raise_for_status()
@@ -95,11 +97,11 @@ def fetch_results_from_artifact(folder):
                         name = step.get("name", "")
                         duration = round(step.get("duration", 0), 3)
                         print(f"     [{status}] {keyword} {name} ({duration}s)")
-            return  # success, exit function
+            return  # success
         except requests.HTTPError as e:
             print(f"❌ HTTP error: {e}, retrying...")
             time.sleep(10)
-    print(f"❌ Could not fetch artifact summary for folder {folder} after multiple attempts")
+    print(f"❌ Could not fetch detailed artifact summary for folder {folder} after multiple attempts")
 
 
 def main():
@@ -114,7 +116,7 @@ def main():
             print("❌ Could not retrieve artifact folder, aborting.")
             return
 
-        fetch_results_from_artifact(artifact_folder)
+        fetch_detailed_results(artifact_folder)
 
     except Exception as e:
         print("❌ ERROR:", str(e))
