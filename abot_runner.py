@@ -86,35 +86,44 @@ def poll_status(tag):
         res.raise_for_status()
         exec_info = res.json().get("execution_status", [])
 
-        print("Execution status snapshot:")
-        print(json.dumps(exec_info, indent=2))
+        # 1. Print high-level execution snapshot
+        tag_execs = [s for s in exec_info if tag in s.get("name", "")]
+        if tag_execs:
+            print("Execution status for current tag:")
+            print(json.dumps(tag_execs, indent=2))
 
+        # 2. Print detailed progress list
+        detailed = res.json().get("detailed_status", [])
+        if detailed:
+            print(json.dumps(detailed, indent=2))
 
-        if any(s["name"] == "execution completed" and s["status"] == 1 for s in current_execs):
-                print(f"✔ ABot reports execution completed for tag {tag}.")
+            if any(s["name"] == "execution completed" and s["status"] == 1 for s in detailed):
+                print("✔ ABot reports execution completed.")
                 return True
 
         time.sleep(10)
 
-def fetch_artifact_id(exec_id):
+
+def fetch_artifact_id(tag):
     print("Fetching artifact id for this execution...")
-    for attempt in range(30):
-        resp = requests.get(ARTIFACTS_URL, headers=headers, params={"executionId": exec_id}, timeout=30)
+    for attempt in range(20):
+        resp = requests.get(f"{ABOT_URL}/abot/api/v5/artifacts/latest_artifact_name",
+                            headers=headers, params={"feature": tag}, timeout=30)
         resp.raise_for_status()
         data = resp.json()
-        print(f"Debug: /artifacts/list response: {json.dumps(data, indent=2)}")
+        print(f"Debug: /latest_artifact_name response: {json.dumps(data, indent=2)}")
 
-        # 🔹 Extract artifact folder for this execution
-        artifact_folder = data.get("data", {}).get("artifact_folder")
-        if artifact_folder:
-            print(f"✔ Found matching artifact folder: {artifact_folder}")
-            return artifact_folder
+        folder = data.get("data", {}).get("latest_artifact_timestamp")
+        if folder:
+            print(f"✔ Latest artifact folder: {folder}")
+            return folder
 
-        print(f"⚠ No artifact yet, retrying... (attempt {attempt+1}/30)")
+        print(f"⚠ No artifact yet, retrying... (attempt {attempt+1}/20)")
         time.sleep(10)
 
     print("❌ Could not fetch artifact folder in time")
     return None
+
 
 
 def fetch_summary(folder):
