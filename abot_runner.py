@@ -94,7 +94,7 @@ def fetch_artifact_id():
         data = resp.json()
         artifact_folder = data.get("data", {}).get("latest_artifact_timestamp")
         if artifact_folder:
-            print(f"✔ Found artifact folder: {artifact_folder}")
+            print(f"✔ Found artifact folder {feature_tag}: {artifact_folder}")
             return artifact_folder
         print(f"⚠ No artifact yet, retrying... (attempt {attempt+1}/30)")
         time.sleep(10)
@@ -108,7 +108,7 @@ def main():
         update_config()
         execute_feature()
         poll_status()
-        folder = fetch_artifact_id()
+        folder = fetch_artifact_id(FEATURE_TAG)
         if folder:
             print(f"📂 Artifact folder: {folder}")
     except Exception as e:
