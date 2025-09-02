@@ -79,24 +79,35 @@ def execute_feature():
     # No executionId here, just return tag
     return FEATURE_TAG
 
-def poll_status(tag):
+def poll_status(tag, timeout=1800):  # 30 min timeout
     print("Polling execution status...")
+    start_time = time.time()
+
     while True:
+        if time.time() - start_time > timeout:
+            print("❌ ERROR: Polling timed out after 30 minutes.")
+            return False
+
         res = requests.get(STATUS_URL, headers=headers, timeout=30)
         res.raise_for_status()
-        exec_info = res.json().get("execution_status", [])
+        data = res.json()
 
-        # 1. Print high-level execution snapshot
+        exec_info = data.get("execution_status", [])
+        detailed = data.get("detailed_status", [])
+
+        # Case 1: execution disappeared
+        if not exec_info and not detailed:
+            print("✅ No active executions found. Assuming execution completed.")
+            return True
+
+        # Case 2: print current execution info
         tag_execs = [s for s in exec_info if tag in s.get("name", "")]
         if tag_execs:
             print("Execution status for current tag:")
             print(json.dumps(tag_execs, indent=2))
 
-        # 2. Print detailed progress list
-        detailed = res.json().get("detailed_status", [])
         if detailed:
             print(json.dumps(detailed, indent=2))
-
             if any(s["name"] == "execution completed" and s["status"] == 1 for s in detailed):
                 print("✔ ABot reports execution completed.")
                 return True
@@ -186,29 +197,25 @@ def main():
     try:
         login()
         update_config()
-        exec_id = execute_feature()        # 🔹 get executionId
-        if not poll_status(exec_id):       # 🔹 pass executionId to poll
+        exec_id = execute_feature()
+        if not poll_status(exec_id):
             print("❌ Execution did not complete in time")
             sys.exit(1)
 
-        folder = fetch_artifact_id(exec_id)  # 🔹 fetch artifact tied to execution
+        # ✅ Get artifact folder
+        folder = fetch_artifact_id(exec_id)
         if not folder:
             print("❌ No artifact id found, cannot proceed with summary.")
             sys.exit(1)
+        print(f"✔ Latest artifact folder: {folder}")
 
-        # ✅ If you only want workflow to stop when ABot UI finishes
-        print("✔ Execution finished in ABot, stopping workflow.")
-        sys.exit(0)
-
-        time.sleep(20)  # wait for summary to generate
-
+        # ✅ Fetch summary
+        print("Fetching execution summary...")
         summary = fetch_summary(folder)
-        test_passed = check_result(summary, folder)
+        print(json.dumps(summary, indent=2))
 
-        if test_passed:
-            print("✔ All features PASSED ✅")
-        else:
-            print("❌ Some features FAILED ❌")
+        # ✅ Check pass/fail
+        test_passed = check_result(summary, folder)
 
         sys.exit(0 if test_passed else 1)
 
