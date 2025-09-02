@@ -74,36 +74,36 @@ def execute_feature():
     payload = {"params": FEATURE_TAG}
     res = requests.post(EXECUTE_URL, headers=headers, json=payload, timeout=30)
     res.raise_for_status()
-    print("✔ Test execution started.")
-    try:
-        print("Execution response:", json.dumps(res.json(), indent=2))
-    except Exception:
-        print("Raw execution response:", res.text)
+    data = res.json()
+    print("Execution response:", json.dumps(data, indent=2))
+
+    exec_id = data.get("executionId") or data.get("data", {}).get("execution_id")
+    if not exec_id:
+        print("❌ No executionId found in response!")
+        sys.exit(1)
+
+    print(f"✔ Captured executionId: {exec_id}")
+    return exec_id
 
 
-def poll_status():
-    print("Polling execution status...")
+def poll_status(exec_id):
+    print(f"Polling execution status for execId={exec_id} ...")
+    DETAIL_STATUS_URL = f"{ABOT_URL}/abot/api/v5/detail_execution_status"
+
     while True:
-        res = requests.get(STATUS_URL, headers=headers, timeout=30)
+        res = requests.get(DETAIL_STATUS_URL, headers=headers, params={"executionId": exec_id}, timeout=30)
         res.raise_for_status()
-        exec_info = res.json().get("executing", {})
+        data = res.json()
 
-        statuses = exec_info.get("execution_status", [])
+        print("Status response:", json.dumps(data, indent=2))
 
-        # ✅ Only print relevant block for this execution
-        print("Filtered execution status:")
-        filtered_statuses = []
-        for s in statuses:
-            if FEATURE_TAG in s.get("name", "") or s.get("name", "").endswith(".feature") or "execution completed" in s.get("name", ""):
-                filtered_statuses.append(s)
-
-        print(json.dumps(filtered_statuses, indent=2))
-
-        if any(s["name"] == "execution completed" and s["status"] == 1 for s in filtered_statuses):
-            print("✔ ABot reports execution completed for current tag.")
+        status = data.get("data", {}).get("status")
+        if status and status.lower() in ["completed", "finished", "done"]:
+            print("✔ Execution completed.")
             return True
 
-        time.sleep(50)
+        time.sleep(30)
+
 
 
 def fetch_artifact_id():
@@ -205,12 +205,12 @@ def main():
     try:
         login()
         update_config()
-        execute_feature()
-        if not poll_status():
+        exec_id = execute_feature()
+        if not poll_status(exec_id):
             print("❌ Execution did not complete in time")
             sys.exit(1)
-
-        folder = fetch_artifact_id()
+        
+        folder = fetch_artifact_id()  # still use this to find artifact after completion
         if not folder:
             print("❌ No artifact id found, cannot proceed with summary.")
             sys.exit(1)
