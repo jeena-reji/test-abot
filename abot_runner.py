@@ -11,7 +11,7 @@ CONFIG_URL = f"{ABOT_URL}/abot/api/v5/update_config_properties"
 EXECUTE_URL = f"{ABOT_URL}/abot/api/v5/feature_files/execute"
 STATUS_URL = f"{ABOT_URL}/abot/api/v5/execution_status"
 ARTIFACTS_URL = f"{ABOT_URL}/abot/api/v5/artifacts/list"   # 🔹 changed endpoint
-SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary"
+SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/detail_execution_status"
 
 # Credentials and feature tag
 USERNAME = "ajeesh@cazelabs.com"
@@ -77,14 +77,23 @@ def execute_feature():
     print("✔ Test execution started.")
     print("Execution response:", json.dumps(data, indent=2))
 
-    # 🔹 Capture executionId
-    exec_id = data.get("data", {}).get("executionId")
+    # 🔍 Debug: print all keys
+    print("DEBUG keys in response:", list(data.keys()))
+
+    # Try common key names
+    exec_id = (
+        data.get("executionId") or
+        data.get("id") or
+        data.get("execId") or
+        data.get("data", {}).get("executionId")
+    )
+
     if not exec_id:
-        print("❌ No executionId found in response.")
-        sys.exit(1)
+        print("⚠ No executionId in response. Will fetch latest from /artifacts/list ...")
+        return None
 
+    print(f"✔ Captured executionId: {exec_id}")
     return exec_id
-
 
 def poll_status(exec_id):
     print("Polling execution status...")
