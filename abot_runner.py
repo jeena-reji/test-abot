@@ -115,21 +115,21 @@ def poll_status(tag, timeout=1800):  # 30 min timeout
         time.sleep(10)
 
 
-def fetch_artifact_id(tag):
+def fetch_artifact_id():
     print("Fetching artifact id for this execution...")
-    for attempt in range(20):
-        resp = requests.get(f"{ABOT_URL}/abot/api/v5/artifacts/latest_artifact_name",
-                            headers=headers, params={"feature": tag}, timeout=30)
+    for attempt in range(30):
+        resp = requests.get(ARTIFACTS_URL, headers=headers, timeout=30)
         resp.raise_for_status()
         data = resp.json()
         print(f"Debug: /latest_artifact_name response: {json.dumps(data, indent=2)}")
 
-        folder = data.get("data", {}).get("latest_artifact_timestamp")
-        if folder:
-            print(f"✔ Latest artifact folder: {folder}")
-            return folder
+        # ✅ Extract the latest artifact folder correctly
+        artifact_folder = data.get("data", {}).get("latest_artifact_timestamp")
+        if artifact_folder:
+            print(f"✔ Found matching artifact folder: {artifact_folder}")
+            return artifact_folder
 
-        print(f"⚠ No artifact yet, retrying... (attempt {attempt+1}/20)")
+        print(f"⚠ No artifact yet, retrying... (attempt {attempt+1}/30)")
         time.sleep(10)
 
     print("❌ Could not fetch artifact folder in time")
