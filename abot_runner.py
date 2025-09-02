@@ -147,22 +147,30 @@ def main():
         login()
         update_config()
         execute_feature()
-        feature_file = resolve_feature_file_live(FEATURE_TAG)
-        if feature_file:
+
+        # ✅ Step 1: Wait for artifact folder (ensures new execution started)
+        folder = fetch_artifact_id(FEATURE_TAG)
+        if not folder:
+            print("❌ Could not find artifact, aborting.")
+            return
+
+        print(f"📂 Artifact folder: {folder}")
+
+        # ✅ Step 2: Now resolve correct feature file
+        feature_files = resolve_feature_file_final(FEATURE_TAG)
+        if not feature_files:
+            print("❌ Could not resolve feature files for this tag.")
+            return
+
+        for feature_file in feature_files:
             poll_status(FEATURE_TAG, feature_file)
-            folder = fetch_artifact_id(FEATURE_TAG)
-            if folder:
-                print(f"📂 Artifact folder: {folder}")
-                # Now fetch the final confirmed feature names
-                resolve_feature_file_final(FEATURE_TAG)
 
-
-    
     except Exception as e:
         print("❌ ERROR:", str(e))
         sys.exit(1)
     finally:
         print("=== ABot Test Automation Completed ===")
+
 
 if __name__ == "__main__":
     main()
