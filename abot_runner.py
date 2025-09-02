@@ -63,14 +63,19 @@ def resolve_feature_file_live(feature_tag):
         res.raise_for_status()
         data = res.json()
         executing = data.get("executing", {})
-        if executing:
-            features = list(executing.keys())
-            print(f"Currently executing features: {features}")
-            return features[0]
-        print(f"⚠ No execution reported yet, retrying... (attempt {attempt+1}/12)")
+
+        # Match feature file that contains the feature_tag (case-insensitive)
+        for feature_file in executing.keys():
+            if feature_tag.lower() in feature_file.lower():
+                print(f"Currently executing feature matched for tag: {feature_file}")
+                return feature_file
+
+        print(f"⚠ No execution reported yet for tag '{feature_tag}', retrying... (attempt {attempt+1}/12)")
         time.sleep(10)
+
     print(" Could not resolve feature file during live execution.")
     return None
+
 def resolve_feature_file_final(feature_tag, folder):
     """Resolve the actual feature file(s) from the artifact summary after execution completes."""
     url = f"{ABOT_URL}/abot/api/v5/artifact_summary?artifactId={folder}"
