@@ -56,20 +56,19 @@ def execute_feature():
     return True
 
 def resolve_feature_file(feature_tag):
-    """Map the executed tag to its actual feature file name from ABot."""
-    print(f"🔍 Resolving feature file for tag: {feature_tag}")
-    for attempt in range(12):  # wait max 2 mins
-        res = requests.get(DETAIL_STATUS_URL, headers=headers, timeout=30)
-        res.raise_for_status()
-        data = res.json()
-        executing = data.get("executing", {})
-        if executing:
-            print("👉 Currently executing features:", list(executing.keys()))
-            # Pick the first feature file running
-            return list(executing.keys())[0]
-        print("⚠ No execution reported yet, retrying...")
+    """Resolve the actual feature file name for the given tag."""
+    url = f"{ABOT_URL}/abot/api/v5/artifact_summary?tag={feature_tag}"
+    for attempt in range(12):  # wait up to 2 minutes
+        res = requests.get(url, headers=headers, timeout=30)
+        if res.status_code == 200:
+            data = res.json()
+            features = [f["name"] for f in data.get("features", [])]
+            if features:
+                print(f"👉 Resolved feature(s) for tag {feature_tag}: {features}")
+                return features[0]   # pick the first, or return the whole list if you want multiple
+        print(f"⚠ No feature resolved yet for tag {feature_tag}, retrying... (attempt {attempt+1}/12)")
         time.sleep(10)
-    print("❌ Could not resolve feature file for tag.")
+    print(f"❌ Could not resolve feature file for tag {feature_tag}")
     return None
 
 def poll_status(feature_tag, feature_file):
