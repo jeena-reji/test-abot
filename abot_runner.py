@@ -9,17 +9,16 @@ ABOT_URL = "http://10.176.27.73/abotrest"
 LOGIN_URL = f"{ABOT_URL}/abot/api/v5/login"
 CONFIG_URL = f"{ABOT_URL}/abot/api/v5/update_config_properties"
 EXECUTE_URL = f"{ABOT_URL}/abot/api/v5/feature_files/execute"
-ARTIFACTS_URL = f"{ABOT_URL}/abot/api/v5/latest_artifact_name"
-ARTIFACT_SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/artifact_summary"
-EXEC_FEATURE_SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary"
-
+LATEST_ARTIFACT_URL = f"{ABOT_URL}/abot/api/v5/latest_artifact_name"
+DASHBOARD_URL = f"{ABOT_URL}/abot/api/v5/dashBoard_cards"
+EXEC_FEATURE_DETAILS_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureDetails"
+EXEC_FAILURE_DETAILS_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFailureDetails"
 
 # Credentials and feature tag
 USERNAME = "ajeesh@cazelabs.com"
 PASSWORD = "ajeesh1234"
 FEATURE_TAG = os.getenv("FEATURE_TAG", "5gs-initial-registration-sdcore-0.0.10")
 
-# Request headers
 headers = {"Content-Type": "application/json"}
 
 def login():
@@ -54,40 +53,40 @@ def execute_feature():
     res.raise_for_status()
     data = res.json()
     print("Execution response:", json.dumps(data, indent=2))
-    return True
 
-def fetch_artifact_id(tag):
-    """Fetch the latest artifact folder corresponding to the executed tag."""
-    print("Fetching artifact id for this execution...")
-    for attempt in range(30):
-        resp = requests.get(ARTIFACTS_URL, headers=headers, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
+def fetch_latest_artifact(tag):
+    print("Fetching latest artifact folder...")
+    for _ in range(30):
+        res = requests.get(LATEST_ARTIFACT_URL, headers=headers, timeout=30)
+        res.raise_for_status()
+        data = res.json()
         artifact_folder = data.get("data", {}).get("latest_artifact_timestamp")
         if artifact_folder and tag in artifact_folder:
-            print(f"✔ Found artifact folder for {tag}: {artifact_folder}")
+            print(f"✔ Found artifact folder: {artifact_folder}")
             return artifact_folder
-        print(f"⚠ Artifact not matching tag yet, retrying... (attempt {attempt+1}/30)")
+        print("⚠ Artifact not ready yet, retrying...")
         time.sleep(10)
-    print("❌ Could not fetch artifact folder in time")
+    print("❌ Could not fetch artifact folder")
     return None
 
-def fetch_detailed_results(folder):
-    """Fetch executed feature files and scenario results from artifact execFeatureSummary."""
-    url = f"{EXEC_FEATURE_SUMMARY_URL}?artifactId={folder}"
-    for attempt in range(20):  # retry up to ~3 minutes
+def fetch_detailed_report(folder):
+    """Fetch detailed per-feature results"""
+    url = f"{EXEC_FEATURE_DETAILS_URL}?artifactId={folder}"
+    for attempt in range(20):
         try:
             res = requests.get(url, headers=headers, timeout=30)
             if res.status_code == 404:
-                print(f"⚠ Detailed artifact summary not ready yet, retrying... (attempt {attempt+1}/20)")
+                print(f"⚠ Detailed report not ready yet, attempt {attempt+1}/20")
                 time.sleep(10)
                 continue
             res.raise_for_status()
             data = res.json()
             features = data.get("features", [])
+            if not features:
+                print("⚠ No feature data found")
+                return False
             for feature in features:
-                feature_name = feature.get("name")
-                print(f"\n📌 Feature: {feature_name}")
+                print(f"\n📌 Feature: {feature.get('name')}")
                 scenarios = feature.get("scenarios", {})
                 for scenario_name, steps in scenarios.items():
                     print(f"   Scenario: {scenario_name}")
@@ -97,12 +96,26 @@ def fetch_detailed_results(folder):
                         name = step.get("name", "")
                         duration = round(step.get("duration", 0), 3)
                         print(f"     [{status}] {keyword} {name} ({duration}s)")
-            return  # success
+            return True
         except requests.HTTPError as e:
             print(f"❌ HTTP error: {e}, retrying...")
             time.sleep(10)
-    print(f"❌ Could not fetch detailed artifact summary for folder {folder} after multiple attempts")
+    return False
 
+def fetch_summary_report(folder):
+    """Fallback to summary report"""
+    print("Fetching summary report...")
+    res = requests.get(DASHBOARD_URL, headers=headers, timeout=30)
+    res.raise_for_status()
+    data = res.json()
+    features = data.get("features", [])
+    for feature in features:
+        if feature.get("tag") == FEATURE_TAG:
+            print(f"\n📌 Feature Tag: {FEATURE_TAG}")
+            print(f"   Total Scenarios: {feature.get('total_scenarios', 0)}")
+            print(f"   Passed: {feature.get('passed_scenarios', 0)}")
+            print(f"   Failed: {feature.get('failed_scenarios', 0)}")
+            print(f"   Overall Status: {feature.get('status', 'UNKNOWN')}")
 
 def main():
     print("=== ABot Test Automation Started ===")
@@ -111,12 +124,15 @@ def main():
         update_config()
         execute_feature()
 
-        artifact_folder = fetch_artifact_id(FEATURE_TAG)
+        artifact_folder = fetch_latest_artifact(FEATURE_TAG)
         if not artifact_folder:
             print("❌ Could not retrieve artifact folder, aborting.")
             return
 
-        fetch_detailed_results(artifact_folder)
+        success = fetch_detailed_report(artifact_folder)
+        if not success:
+            print("⚠ Falling back to summary report")
+            fetch_summary_report(artifact_folder)
 
     except Exception as e:
         print("❌ ERROR:", str(e))
