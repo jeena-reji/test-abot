@@ -130,13 +130,28 @@ def fetch_artifact_id():
 
 def fetch_summary(folder):
     print("Fetching execution summary...")
-    params = {
-        "foldername": folder,   # correct key
-        "page": 1               # required param
-    }
-    resp = requests.get(SUMMARY_URL, headers=headers, params=params, timeout=30)
-    resp.raise_for_status()
-    return resp.json()
+    params_variants = [
+        {"foldername": folder, "page": 1},
+        {"artifactName": folder, "page": 1},
+        {"artifactFolder": folder, "page": 1},
+    ]
+
+    for attempt in range(10):  # try up to 10 times
+        for params in params_variants:
+            try:
+                resp = requests.get(SUMMARY_URL, headers=headers, params=params, timeout=30)
+                if resp.status_code == 200:
+                    print(f"✔ Got summary using params {params}")
+                    return resp.json()
+                else:
+                    print(f"⚠ Attempt {attempt+1}: params {params} → status {resp.status_code}")
+            except Exception as e:
+                print(f"⚠ Attempt {attempt+1}: params {params} → error {str(e)}")
+
+        time.sleep(15)
+
+    raise RuntimeError("❌ Could not fetch execution summary after multiple retries")
+
 
 
 
@@ -200,7 +215,7 @@ def main():
             print("❌ No artifact id found, cannot proceed with summary.")
             sys.exit(1)
         
-        time.sleep(20)  # Wait 10s to let ABot generate the summary
+        time.sleep(60)  # Wait 10s to let ABot generate the summary
         
         summary = fetch_summary(folder)
         test_passed = check_result(summary, folder)
