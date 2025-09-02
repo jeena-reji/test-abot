@@ -76,43 +76,27 @@ def execute_feature():
     data = res.json()
     print("✔ Test execution started.")
     print("Execution response:", json.dumps(data, indent=2))
+    # No executionId here, just return tag
+    return FEATURE_TAG
 
-    # 🔍 Debug: print all keys
-    print("DEBUG keys in response:", list(data.keys()))
-
-    # Try common key names
-    exec_id = (
-        data.get("executionId") or
-        data.get("id") or
-        data.get("execId") or
-        data.get("data", {}).get("executionId")
-    )
-
-    if not exec_id:
-        print("⚠ No executionId in response. Will fetch latest from /artifacts/list ...")
-        return None
-
-    print(f"✔ Captured executionId: {exec_id}")
-    return exec_id
-
-def poll_status(exec_id):
+def poll_status(tag):
     print("Polling execution status...")
     while True:
-        # 🔹 Pass exec_id to filter status
-        params = {"executionId": exec_id}
-        res = requests.get(STATUS_URL, headers=headers, params=params, timeout=30)
+        res = requests.get(STATUS_URL, headers=headers, timeout=30)
         res.raise_for_status()
         exec_info = res.json().get("execution_status", [])
 
-        print("Filtered execution status:")
-        print(json.dumps(exec_info, indent=2))
+        # Filter only current tag
+        current_execs = [s for s in exec_info if tag in s.get("name", "")]
+        if current_execs:
+            print("Filtered execution status:")
+            print(json.dumps(current_execs, indent=2))
 
-        if any(s["name"] == "execution completed" and s["status"] == 1 for s in exec_info):
-            print("✔ ABot reports execution completed for current tag.")
-            return True
+            if any(s["name"] == "execution completed" and s["status"] == 1 for s in current_execs):
+                print(f"✔ ABot reports execution completed for tag {tag}.")
+                return True
 
         time.sleep(10)
-
 
 def fetch_artifact_id(exec_id):
     print("Fetching artifact id for this execution...")
