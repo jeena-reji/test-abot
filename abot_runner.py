@@ -55,21 +55,36 @@ def execute_feature():
     print("Response headers:", res.headers)
     return True
 
-def resolve_feature_file(feature_tag):
-    """Resolve the actual feature file name for the given tag."""
-    url = f"{ABOT_URL}/abot/api/v5/artifact_summary?tag={feature_tag}"
-    for attempt in range(12):  # wait up to 2 minutes
-        res = requests.get(url, headers=headers, timeout=30)
-        if res.status_code == 200:
-            data = res.json()
-            features = [f["name"] for f in data.get("features", [])]
-            if features:
-                print(f"👉 Resolved feature(s) for tag {feature_tag}: {features}")
-                return features[0]   # pick the first, or return the whole list if you want multiple
-        print(f"⚠ No feature resolved yet for tag {feature_tag}, retrying... (attempt {attempt+1}/12)")
+def resolve_feature_file_live(feature_tag):
+    """Check live execution status for the feature file (from detail_execution_status)."""
+    print(f"🔍 Resolving feature file for tag: {feature_tag}")
+    for attempt in range(12):  # 2 minutes max
+        res = requests.get(DETAIL_STATUS_URL, headers=headers, timeout=30)
+        res.raise_for_status()
+        data = res.json()
+        executing = data.get("executing", {})
+        if executing:
+            features = list(executing.keys())
+            print(f"👉 Currently executing features: {features}")
+            return features[0]
+        print(f"⚠ No execution reported yet, retrying... (attempt {attempt+1}/12)")
         time.sleep(10)
-    print(f"❌ Could not resolve feature file for tag {feature_tag}")
+    print("❌ Could not resolve feature file during live execution.")
     return None
+
+def resolve_feature_file_final(feature_tag):
+    """Resolve the actual feature file(s) from the artifact summary after execution completes."""
+    url = f"{ABOT_URL}/abot/api/v5/artifact_summary?tag={feature_tag}"
+    res = requests.get(url, headers=headers, timeout=30)
+    if res.status_code == 200:
+        data = res.json()
+        features = [f["name"] for f in data.get("features", [])]
+        if features:
+            print(f"📌 Final resolved feature(s) for tag {feature_tag}: {features}")
+            return features
+    print(f"⚠ No feature resolved in artifact summary for tag {feature_tag}")
+    return []
+
 
 def poll_status(feature_tag, feature_file):
     print(f"Polling execution status for tag {feature_tag} (file: {feature_file})...")
@@ -132,12 +147,15 @@ def main():
         login()
         update_config()
         execute_feature()
-        feature_file = resolve_feature_file(FEATURE_TAG)
+        feature_file = resolve_feature_file_live(FEATURE_TAG)
         if feature_file:
             poll_status(FEATURE_TAG, feature_file)
             folder = fetch_artifact_id(FEATURE_TAG)
             if folder:
                 print(f"📂 Artifact folder: {folder}")
+                # Now fetch the final confirmed feature names
+                resolve_feature_file_final(FEATURE_TAG)
+
 
     
     except Exception as e:
