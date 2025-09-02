@@ -66,7 +66,7 @@ def poll_status(feature_tag):
             print("⚠ No active execution found yet.")
             time.sleep(10)
             continue
-        
+
         # Only look at this feature
         matched = {f: s for f, s in executing.items() if feature_tag in f}
         if not matched:
@@ -74,7 +74,7 @@ def poll_status(feature_tag):
             time.sleep(10)
             continue
 
-        for feature, scenarios in executing.items():
+        for feature, scenarios in matched.items():   # ✅ only loop matched
             print(f"\n📌 Feature: {feature}")
             for scenario, steps in scenarios.items():
                 print(f"   Scenario: {scenario}")
@@ -85,34 +85,38 @@ def poll_status(feature_tag):
                     duration = round(step.get("duration", 0), 3)
                     print(f"     [{status}] {keyword} {name} ({duration}s)")
 
-         # Check if execution finished
-        all_status = [step.get("status", "").lower()
-                      for f in matched.values()
-                      for s in f.values()
-                      for step in s]
+        # Check if execution finished
+        all_status = [
+            step.get("status", "").lower()
+            for f in matched.values()
+            for s in f.values()
+            for step in s
+        ]
         if all_status and (
-            "failed" in all_status or 
-            all(s in ["passed", "skipped"] for s in all_status)
+            "failed" in all_status
+            or all(s in ["passed", "skipped"] for s in all_status)
         ):
             print("\n✔ Execution finished.")
             return True
 
         time.sleep(30)
 
-def fetch_artifact_id():
+
+def fetch_artifact_id(feature_tag):   # ✅ accept feature_tag
     print("Fetching artifact id for this execution...")
     for attempt in range(30):
         resp = requests.get(ARTIFACTS_URL, headers=headers, timeout=30)
         resp.raise_for_status()
         data = resp.json()
         artifact_folder = data.get("data", {}).get("latest_artifact_timestamp")
-        if artifact_folder  and feature_tag in artifact_folder:
-            print(f"✔ Found artifact folder {feature_tag}: {artifact_folder}")
+        if artifact_folder and feature_tag in artifact_folder:
+            print(f"✔ Found artifact folder for {feature_tag}: {artifact_folder}")
             return artifact_folder
         print(f"⚠ Artifact not matching tag yet, retrying... (attempt {attempt+1}/30)")
         time.sleep(10)
     print("❌ Could not fetch artifact folder in time")
     return None
+
 
 def main():
     print("=== ABot Test Automation Started ===")
@@ -120,8 +124,8 @@ def main():
         login()
         update_config()
         execute_feature()
-        poll_status()
-        folder = fetch_artifact_id(FEATURE_TAG)
+        poll_status(FEATURE_TAG)          # ✅ pass tag
+        folder = fetch_artifact_id(FEATURE_TAG)  # ✅ pass tag
         if folder:
             print(f"📂 Artifact folder: {folder}")
     except Exception as e:
