@@ -73,22 +73,34 @@ def fetch_artifact_id(tag):
 def fetch_results_from_artifact(folder):
     """Fetch executed feature file(s) and scenario results from artifact summary."""
     url = f"{ARTIFACT_SUMMARY_URL}?artifactId={folder}"
-    res = requests.get(url, headers=headers, timeout=30)
-    res.raise_for_status()
-    data = res.json()
-    features = data.get("features", [])
-    for feature in features:
-        feature_name = feature.get("name")
-        print(f"\n📌 Feature: {feature_name}")
-        scenarios = feature.get("scenarios", {})
-        for scenario_name, steps in scenarios.items():
-            print(f"   Scenario: {scenario_name}")
-            for step in steps:
-                status = step.get("status", "UNKNOWN").upper()
-                keyword = step.get("keyword", "")
-                name = step.get("name", "")
-                duration = round(step.get("duration", 0), 3)
-                print(f"     [{status}] {keyword} {name} ({duration}s)")
+    for attempt in range(20):  # retry up to ~3 minutes
+        try:
+            res = requests.get(url, headers=headers, timeout=30)
+            if res.status_code == 404:
+                print(f"⚠ Artifact summary not ready yet, retrying... (attempt {attempt+1}/20)")
+                time.sleep(10)
+                continue
+            res.raise_for_status()
+            data = res.json()
+            features = data.get("features", [])
+            for feature in features:
+                feature_name = feature.get("name")
+                print(f"\n📌 Feature: {feature_name}")
+                scenarios = feature.get("scenarios", {})
+                for scenario_name, steps in scenarios.items():
+                    print(f"   Scenario: {scenario_name}")
+                    for step in steps:
+                        status = step.get("status", "UNKNOWN").upper()
+                        keyword = step.get("keyword", "")
+                        name = step.get("name", "")
+                        duration = round(step.get("duration", 0), 3)
+                        print(f"     [{status}] {keyword} {name} ({duration}s)")
+            return  # success, exit function
+        except requests.HTTPError as e:
+            print(f"❌ HTTP error: {e}, retrying...")
+            time.sleep(10)
+    print(f"❌ Could not fetch artifact summary for folder {folder} after multiple attempts")
+
 
 def main():
     print("=== ABot Test Automation Started ===")
