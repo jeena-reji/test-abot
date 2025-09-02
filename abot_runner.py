@@ -103,7 +103,7 @@ def poll_status():
             print("✔ ABot reports execution completed for current tag.")
             return True
 
-        time.sleep(30)
+        time.sleep(50)
 
 
 def fetch_artifact_id():
