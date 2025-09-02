@@ -163,7 +163,7 @@ def main():
             print(f"📂 Artifact folder: {folder}")
 
             # ✅ Step 3: Resolve final feature(s) from artifact_summary (always accurate)
-            final_features = resolve_feature_file_final(FEATURE_TAG)
+            final_features = resolve_feature_file_final(FEATURE_TAG, folder)
             if final_features:
                 print(f"📌 Final resolved feature(s) for tag {FEATURE_TAG}: {final_features}")
             else:
