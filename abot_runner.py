@@ -78,38 +78,48 @@ def execute_feature():
     print("Execution response:", json.dumps(data, indent=2))
     print("Response headers:", res.headers)   # 👈 add this
 
-    # Try extracting execId from either body or headers
-    exec_id = (
-        data.get("executionId")
-        or data.get("data", {}).get("execution_id")
-        or res.headers.get("executionId")
-        or res.headers.get("Execution-Id")
-    )
-    if not exec_id:
-        print("❌ No executionId found in response or headers!")
-        return None
-
-    print(f"✔ Captured executionId: {exec_id}")
-    return exec_id
+    return true
 
 
-def poll_status(exec_id):
-    print(f"Polling execution status for execId={exec_id} ...")
+def poll_status(exec_id=None):
+    print("Polling execution status ...")
     DETAIL_STATUS_URL = f"{ABOT_URL}/abot/api/v5/detail_execution_status"
 
     while True:
-        res = requests.get(DETAIL_STATUS_URL, headers=headers, params={"executionId": exec_id}, timeout=30)
+        res = requests.get(DETAIL_STATUS_URL, headers=headers, timeout=30)
         res.raise_for_status()
         data = res.json()
 
-        print("Status response:", json.dumps(data, indent=2))
+        executing = data.get("executing", {})
+        if not executing:
+            print("⚠ No active execution found yet.")
+            time.sleep(10)
+            continue
 
-        status = data.get("data", {}).get("status")
-        if status and status.lower() in ["completed", "finished", "done"]:
-            print("✔ Execution completed.")
+        for feature, scenarios in executing.items():
+            print(f"\n📌 Feature: {feature}")
+            for scenario, steps in scenarios.items():
+                print(f"   Scenario: {scenario}")
+                for step in steps:
+                    keyword = step.get("keyword")
+                    name = step.get("name")
+                    status = step.get("status", "unknown").upper()
+                    duration = round(step.get("duration", 0), 3)
+                    print(f"     [{status}] {keyword} {name} ({duration}s)")
+
+        # ✅ Detect completion: if any step has 'failed' or all are 'passed'
+        all_status = [
+            step.get("status", "").lower()
+            for f in executing.values()
+            for s in f.values()
+            for step in s
+        ]
+        if "failed" in all_status or all(s in ["passed", "skipped"] for s in all_status):
+            print("\n✔ Execution finished.")
             return True
 
         time.sleep(30)
+
 
 
 
@@ -216,21 +226,20 @@ def main():
     try:
         login()
         update_config()
-        exec_id = execute_feature()
-        if not poll_status(exec_id):
+        execute_feature()
+        if not poll_status():
             print("❌ Execution did not complete in time")
             sys.exit(1)
         
-        folder = fetch_artifact_id()  # still use this to find artifact after completion
+        folder = fetch_artifact_id()
         if not folder:
             print("❌ No artifact id found, cannot proceed with summary.")
             sys.exit(1)
         
-        time.sleep(60)  # Wait 10s to let ABot generate the summary
+        time.sleep(60)  # Wait for ABot to generate the summary
         
         summary = fetch_summary(folder)
         test_passed = check_result(summary, folder)
-
 
         if test_passed:
             print("✔ All features PASSED ✅")
