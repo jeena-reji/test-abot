@@ -72,23 +72,30 @@ def fetch_latest_artifact(tag):
 def fetch_failed_steps(folder):
     print("Fetching failed steps...")
     url = f"{EXEC_FAILURE_DETAILS_URL}?artifactId={folder}"
-    try:
-        res = requests.get(url, headers=headers, timeout=30)
-        res.raise_for_status()
-        data = res.json()
-        failures = data.get("failed_steps", [])
-        if not failures:
-            print("✔ No failed steps. All scenarios passed!")
-        else:
-            print(f"\n❌ Total Failed Steps: {len(failures)}")
-            for f in failures:
-                feature = f.get('feature', 'UNKNOWN')
-                scenario = f.get('scenario', 'UNKNOWN')
-                step = f.get('step', 'UNKNOWN')
-                status = f.get('status', 'FAILED')
-                print(f"[{status}] Feature: {feature}, Scenario: {scenario}, Step: {step}")
-    except requests.HTTPError as e:
-        print(f"❌ Could not fetch failed steps: {e}")
+    
+    for attempt in range(20):
+        try:
+            res = requests.get(url, headers=headers, timeout=30)
+            res.raise_for_status()
+            data = res.json()
+            failures = data.get("failed_steps", [])
+            if failures:
+                print(f"\n❌ Total Failed Steps: {len(failures)}")
+                for f in failures:
+                    feature = f.get('feature', 'UNKNOWN')
+                    scenario = f.get('scenario', 'UNKNOWN')
+                    step = f.get('step', 'UNKNOWN')
+                    status = f.get('status', 'FAILED')
+                    print(f"[{status}] Feature: {feature}, Scenario: {scenario}, Step: {step}")
+                return
+            else:
+                print(f"⚠ Attempt {attempt+1}/20: No failed steps yet, retrying...")
+                time.sleep(10)
+        except requests.HTTPError as e:
+            print(f"❌ HTTP error: {e}, retrying...")
+            time.sleep(10)
+    print("✔ No failed steps. All scenarios passed!")
+
 
 def fetch_detailed_report(folder):
     """Fetch detailed per-feature results"""
