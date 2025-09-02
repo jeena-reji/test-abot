@@ -55,7 +55,7 @@ def execute_feature():
     print("Response headers:", res.headers)
     return True
 
-def poll_status():
+def poll_status(feature_tag):
     print("Polling execution status ...")
     while True:
         res = requests.get(DETAIL_STATUS_URL, headers=headers, timeout=30)
@@ -64,6 +64,13 @@ def poll_status():
         executing = data.get("executing", {})
         if not executing:
             print("⚠ No active execution found yet.")
+            time.sleep(10)
+            continue
+        
+        # Only look at this feature
+        matched = {f: s for f, s in executing.items() if feature_tag in f}
+        if not matched:
+            print(f"⚠ Feature {feature_tag} not found in executing list yet.")
             time.sleep(10)
             continue
 
@@ -78,9 +85,15 @@ def poll_status():
                     duration = round(step.get("duration", 0), 3)
                     print(f"     [{status}] {keyword} {name} ({duration}s)")
 
-        # Check if execution is finished
-        all_status = [step.get("status", "").lower() for f in executing.values() for s in f.values() for step in s]
-        if "failed" in all_status or all(s in ["passed", "skipped"] for s in all_status):
+         # Check if execution finished
+        all_status = [step.get("status", "").lower()
+                      for f in matched.values()
+                      for s in f.values()
+                      for step in s]
+        if all_status and (
+            "failed" in all_status or 
+            all(s in ["passed", "skipped"] for s in all_status)
+        ):
             print("\n✔ Execution finished.")
             return True
 
@@ -93,10 +106,10 @@ def fetch_artifact_id():
         resp.raise_for_status()
         data = resp.json()
         artifact_folder = data.get("data", {}).get("latest_artifact_timestamp")
-        if artifact_folder:
+        if artifact_folder  and feature_tag in artifact_folder:
             print(f"✔ Found artifact folder {feature_tag}: {artifact_folder}")
             return artifact_folder
-        print(f"⚠ No artifact yet, retrying... (attempt {attempt+1}/30)")
+        print(f"⚠ Artifact not matching tag yet, retrying... (attempt {attempt+1}/30)")
         time.sleep(10)
     print("❌ Could not fetch artifact folder in time")
     return None
