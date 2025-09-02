@@ -15,7 +15,7 @@ ARTIFACTS_URL = f"{ABOT_URL}/abot/api/v5/latest_artifact_name"
 # Credentials and feature tag
 USERNAME = "ajeesh@cazelabs.com"
 PASSWORD = "ajeesh1234"
-FEATURE_TAG = os.getenv("FEATURE_TAG", "5gs-initial-registration-with-integrity-and-ciphering-sdcore-0.1.2")
+FEATURE_TAG = os.getenv("FEATURE_TAG", "5gs-initial-registration-sdcore-0.0.10")
 
 # Request headers
 headers = {"Content-Type": "application/json"}
@@ -163,11 +163,11 @@ def main():
             print(f"📂 Artifact folder: {folder}")
 
             # ✅ Step 3: Resolve final feature(s) from artifact_summary (always accurate)
-            final_features = resolve_feature_file_final(FEATURE_TAG, folder)
-            if final_features:
-                print(f"📌 Final resolved feature(s) for tag {FEATURE_TAG}: {final_features}")
-            else:
-                print("⚠ Could not resolve final feature mapping from artifact summary.")
+            # final_features = resolve_feature_file_final(FEATURE_TAG, folder)
+            # if final_features:
+            #     print(f"📌 Final resolved feature(s) for tag {FEATURE_TAG}: {final_features}")
+            # else:
+            #     print("⚠ Could not resolve final feature mapping from artifact summary.")
 
     except Exception as e:
         print("❌ ERROR:", str(e))
