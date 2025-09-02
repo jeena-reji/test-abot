@@ -71,19 +71,21 @@ def resolve_feature_file_live(feature_tag):
         time.sleep(10)
     print("❌ Could not resolve feature file during live execution.")
     return None
-
-def resolve_feature_file_final(feature_tag):
+def resolve_feature_file_final(feature_tag, folder):
     """Resolve the actual feature file(s) from the artifact summary after execution completes."""
-    url = f"{ABOT_URL}/abot/api/v5/artifact_summary?tag={feature_tag}"
-    res = requests.get(url, headers=headers, timeout=30)
-    if res.status_code == 200:
+    url = f"{ABOT_URL}/abot/api/v5/artifact_summary?artifactId={folder}"
+    for attempt in range(12):  # wait up to 2 minutes
+        res = requests.get(url, headers=headers, timeout=30)
+        res.raise_for_status()
         data = res.json()
         features = [f["name"] for f in data.get("features", [])]
         if features:
             print(f"📌 Final resolved feature(s) for tag {feature_tag}: {features}")
             return features
-   
+        print(f"⚠ No features yet in artifact {folder}, retrying... (attempt {attempt+1}/12)")
+        time.sleep(10)
     return []
+
 
 
 def poll_status(feature_tag, feature_file):
@@ -156,8 +158,7 @@ def main():
 
         print(f"📂 Artifact folder: {folder}")
 
-        # ✅ Step 2: Now resolve correct feature file
-        feature_files = resolve_feature_file_final(FEATURE_TAG)
+        feature_files = resolve_feature_file_final(FEATURE_TAG, folder)
         if not feature_files:
             print("❌ Could not resolve feature files for this tag.")
             return
