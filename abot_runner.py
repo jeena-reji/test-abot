@@ -69,6 +69,27 @@ def fetch_latest_artifact(tag):
     print("❌ Could not fetch artifact folder")
     return None
 
+def fetch_failed_steps(folder):
+    print("Fetching failed steps...")
+    url = f"{EXEC_FAILURE_DETAILS_URL}?artifactId={folder}"
+    try:
+        res = requests.get(url, headers=headers, timeout=30)
+        res.raise_for_status()
+        data = res.json()
+        failures = data.get("failed_steps", [])
+        if not failures:
+            print("✔ No failed steps. All scenarios passed!")
+        else:
+            print(f"\n❌ Total Failed Steps: {len(failures)}")
+            for f in failures:
+                feature = f.get('feature', 'UNKNOWN')
+                scenario = f.get('scenario', 'UNKNOWN')
+                step = f.get('step', 'UNKNOWN')
+                status = f.get('status', 'FAILED')
+                print(f"[{status}] Feature: {feature}, Scenario: {scenario}, Step: {step}")
+    except requests.HTTPError as e:
+        print(f"❌ Could not fetch failed steps: {e}")
+
 def fetch_detailed_report(folder):
     """Fetch detailed per-feature results"""
     url = f"{EXEC_FEATURE_DETAILS_URL}?artifactId={folder}"
@@ -128,6 +149,8 @@ def main():
         if not artifact_folder:
             print("❌ Could not retrieve artifact folder, aborting.")
             return
+        fetch_failed_steps(artifact_folder)
+
 
         success = fetch_detailed_report(artifact_folder)
         if not success:
