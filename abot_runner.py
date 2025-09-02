@@ -15,7 +15,7 @@ ARTIFACTS_URL = f"{ABOT_URL}/abot/api/v5/latest_artifact_name"
 # Credentials and feature tag
 USERNAME = "ajeesh@cazelabs.com"
 PASSWORD = "ajeesh1234"
-FEATURE_TAG = os.getenv("FEATURE_TAG", "5gs-initial-registration-with-integrity-and-ciphering-sdcore-0.1.2")
+FEATURE_TAG = os.getenv("FEATURE_TAG", "5gs-initial-registration-sdcore-0.0.10")
 
 # Request headers
 headers = {"Content-Type": "application/json"}
@@ -82,7 +82,7 @@ def resolve_feature_file_final(feature_tag):
         if features:
             print(f"📌 Final resolved feature(s) for tag {feature_tag}: {features}")
             return features
-    print(f"⚠ No feature resolved in artifact summary for tag {feature_tag}")
+   
     return []
 
 
