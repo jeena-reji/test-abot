@@ -163,7 +163,7 @@ def fetch_summary(folder):
 
 
 def check_result(summary, folder):
-    print("=== Result Check ===")
+    print("\n=== Execution Summary ===")
     result = summary.get("feature_summary", {}).get("result", {})
     features = result.get("data", [])
 
@@ -172,35 +172,39 @@ def check_result(summary, folder):
 
     for f in features:
         feature_name = f.get("featureName", "UNKNOWN")
-        status = f.get("features", {}).get("status", "").lower()
-        print(f"Feature {feature_name}: {status.upper()}")
+        feature_status = f.get("features", {}).get("status", "unknown").upper()
+        steps = f.get("steps", {})
+        scenarios = f.get("scenario", {})
 
-        if status != "passed":
+        print(f"\n📌 Feature: {feature_name}")
+        print(f"   Status: {feature_status}")
+        print(f"   Steps  → Passed={steps.get('passed', 0)}, Failed={steps.get('failed', 0)}, Skipped={steps.get('skipped', 0)}, Total={steps.get('total', 0)}")
+        print(f"   Scenarios → Passed={scenarios.get('passed', 0)}, Failed={scenarios.get('failed', 0)}, Total={scenarios.get('total', 0)}")
+
+        # Print individual step details
+        step_details = f.get("stepDetails", [])
+        for s in step_details:
+            name = s.get("name", "UNKNOWN STEP")
+            status = s.get("status", "unknown").upper()
+            duration = round(s.get("duration", 0), 3)
+            print(f"     [{status}] {name} ({duration}s)")
+
+        if feature_status != "PASSED":
             all_passed = False
             failed_features.append(f)
 
-    # Print detailed JSON for reference
-    print(json.dumps(result, indent=2))
+    print("\n📂 Artifact folder:", folder)
 
-    if failed_features:
-        print("❌ Some features FAILED ❌")
+    if all_passed:
+        print("\n✔ All features PASSED ✅")
+    else:
+        print("\n❌ Some features FAILED ❌")
         print("=== Failure Analysis ===")
         for f in failed_features:
-            name = f.get("featureName", "UNKNOWN")
-            status = f.get("features", {}).get("status", "unknown")
-
-            steps = f.get("steps", {})
-            scenarios = f.get("scenario", {})
-
-            print(f"- Feature: {name} | status={status}")
-            print(f"  Steps → passed={steps.get('passed', 0)}, failed={steps.get('failed', 0)}, skipped={steps.get('skipped', 0)}, total={steps.get('total', 0)}")
-            print(f"  Scenarios → passed={scenarios.get('passed', 0)}, failed={scenarios.get('failed', 0)}, total={scenarios.get('total', 0)}")
-
-        print(f"📂 Logs for artifact folder {folder} would be downloaded/printed here.")
-    else:
-        print("✔ All features PASSED ✅")
-
+            print(f"- {f.get('featureName')} → {f.get('features', {}).get('status', 'unknown')}")
+    
     return all_passed
+
 
 
 def main():
