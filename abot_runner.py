@@ -27,10 +27,10 @@ def login():
     res.raise_for_status()
     token = res.json().get("data", {}).get("token")
     if not token:
-        print(f"❌ Login response missing token: {res.text}")
+        print(f" Login response missing token: {res.text}")
         sys.exit(1)
     headers["Authorization"] = f"Bearer {token}"
-    print("✔ Login successful.")
+    print(" Login successful.")
 
 def update_config():
     print("=== Configuration Phase ===")
@@ -65,11 +65,11 @@ def resolve_feature_file_live(feature_tag):
         executing = data.get("executing", {})
         if executing:
             features = list(executing.keys())
-            print(f"👉 Currently executing features: {features}")
+            print(f"Currently executing features: {features}")
             return features[0]
         print(f"⚠ No execution reported yet, retrying... (attempt {attempt+1}/12)")
         time.sleep(10)
-    print("❌ Could not resolve feature file during live execution.")
+    print(" Could not resolve feature file during live execution.")
     return None
 def resolve_feature_file_final(feature_tag, folder):
     """Resolve the actual feature file(s) from the artifact summary after execution completes."""
@@ -80,7 +80,7 @@ def resolve_feature_file_final(feature_tag, folder):
         data = res.json()
         features = [f["name"] for f in data.get("features", [])]
         if features:
-            print(f"📌 Final resolved feature(s) for tag {feature_tag}: {features}")
+            print(f"Final resolved feature(s) for tag {feature_tag}: {features}")
             return features
         print(f"⚠ No features yet in artifact {folder}, retrying... (attempt {attempt+1}/12)")
         time.sleep(10)
@@ -102,7 +102,7 @@ def poll_status(feature_tag, feature_file):
             continue
 
         scenarios = executing[feature_file]
-        print(f"\n📌 Feature: {feature_file}")
+        print(f"\n Feature: {feature_file}")
         for scenario, steps in scenarios.items():
             print(f"   Scenario: {scenario}")
             for step in steps:
@@ -137,9 +137,9 @@ def fetch_artifact_id(feature_tag):   # ✅ accept feature_tag
         if artifact_folder and feature_tag in artifact_folder:
             print(f"✔ Found artifact folder for {feature_tag}: {artifact_folder}")
             return artifact_folder
-        print(f"⚠ Artifact not matching tag yet, retrying... (attempt {attempt+1}/30)")
+        print(f" Artifact not matching tag yet, retrying... (attempt {attempt+1}/30)")
         time.sleep(10)
-    print("❌ Could not fetch artifact folder in time")
+    print("Could not fetch artifact folder in time")
     return None
 
 def main():
@@ -149,11 +149,11 @@ def main():
         update_config()
         execute_feature()
 
-        # ✅ Step 1: Resolve live feature file (fast feedback, may be cached/old)
-       # ✅ Step 1: Resolve live feature file (fast feedback, may be cached/old)
+        #  Step 1: Resolve live feature file (fast feedback, may be cached/old)
+       # Step 1: Resolve live feature file (fast feedback, may be cached/old)
         live_feature = resolve_feature_file_live(FEATURE_TAG)
         if live_feature:
-            print(f"👉 Live detected feature file: {live_feature}")
+            print(f"Live detected feature file: {live_feature}")
         
             # ⚠️ Check mismatch between tag and detected feature
             if FEATURE_TAG not in live_feature.lower():
@@ -164,20 +164,20 @@ def main():
                 print("⚠ Could not detect live feature file. Skipping live polling.")
 
 
-        # ✅ Step 2: After execution finishes, fetch artifact folder
+        #  Step 2: After execution finishes, fetch artifact folder
         folder = fetch_artifact_id(FEATURE_TAG)
         if folder:
-            print(f"📂 Artifact folder: {folder}")
+            print(f" Artifact folder: {folder}")
 
-            ✅ Step 3: Resolve final feature(s) from artifact_summary (always accurate)
+            # Step 3: Resolve final feature(s) from artifact_summary (always accurate)
             final_features = resolve_feature_file_final(FEATURE_TAG, folder)
             if final_features:
-                print(f"📌 Final resolved feature(s) for tag {FEATURE_TAG}: {final_features}")
+                print(f"Final resolved feature(s) for tag {FEATURE_TAG}: {final_features}")
             else:
-                print("⚠ Could not resolve final feature mapping from artifact summary.")
+                print(" Could not resolve final feature mapping from artifact summary.")
 
     except Exception as e:
-        print("❌ ERROR:", str(e))
+        print(" ERROR:", str(e))
         sys.exit(1)
     finally:
         print("=== ABot Test Automation Completed ===")
