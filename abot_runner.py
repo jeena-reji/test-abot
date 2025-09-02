@@ -86,13 +86,11 @@ def poll_status(tag):
         res.raise_for_status()
         exec_info = res.json().get("execution_status", [])
 
-        # Filter only current tag
-        current_execs = [s for s in exec_info if tag in s.get("name", "")]
-        if current_execs:
-            print("Filtered execution status:")
-            print(json.dumps(current_execs, indent=2))
+        print("Execution status snapshot:")
+        print(json.dumps(exec_info, indent=2))
 
-            if any(s["name"] == "execution completed" and s["status"] == 1 for s in current_execs):
+
+        if any(s["name"] == "execution completed" and s["status"] == 1 for s in current_execs):
                 print(f"✔ ABot reports execution completed for tag {tag}.")
                 return True
 
@@ -188,6 +186,10 @@ def main():
         if not folder:
             print("❌ No artifact id found, cannot proceed with summary.")
             sys.exit(1)
+
+        # ✅ If you only want workflow to stop when ABot UI finishes
+        print("✔ Execution finished in ABot, stopping workflow.")
+        sys.exit(0)
 
         time.sleep(20)  # wait for summary to generate
 
