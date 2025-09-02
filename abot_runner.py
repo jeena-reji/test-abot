@@ -150,24 +150,31 @@ def main():
         execute_feature()
 
         # ✅ Step 1: Resolve live feature file (fast feedback, may be cached/old)
+       # ✅ Step 1: Resolve live feature file (fast feedback, may be cached/old)
         live_feature = resolve_feature_file_live(FEATURE_TAG)
         if live_feature:
             print(f"👉 Live detected feature file: {live_feature}")
-            poll_status(FEATURE_TAG, live_feature)
-        else:
-            print("⚠ Could not detect live feature file. Skipping live polling.")
+        
+            # ⚠️ Check mismatch between tag and detected feature
+            if FEATURE_TAG not in live_feature.lower():
+                print(f"⚠ WARNING: Tag {FEATURE_TAG} mapped to different feature {live_feature}. Check ABot mapping.")
+
+                poll_status(FEATURE_TAG, live_feature)
+            else:
+                print("⚠ Could not detect live feature file. Skipping live polling.")
+
 
         # ✅ Step 2: After execution finishes, fetch artifact folder
         folder = fetch_artifact_id(FEATURE_TAG)
         if folder:
             print(f"📂 Artifact folder: {folder}")
 
-            # ✅ Step 3: Resolve final feature(s) from artifact_summary (always accurate)
-            # final_features = resolve_feature_file_final(FEATURE_TAG, folder)
-            # if final_features:
-            #     print(f"📌 Final resolved feature(s) for tag {FEATURE_TAG}: {final_features}")
-            # else:
-            #     print("⚠ Could not resolve final feature mapping from artifact summary.")
+            ✅ Step 3: Resolve final feature(s) from artifact_summary (always accurate)
+            final_features = resolve_feature_file_final(FEATURE_TAG, folder)
+            if final_features:
+                print(f"📌 Final resolved feature(s) for tag {FEATURE_TAG}: {final_features}")
+            else:
+                print("⚠ Could not resolve final feature mapping from artifact summary.")
 
     except Exception as e:
         print("❌ ERROR:", str(e))
