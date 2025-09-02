@@ -170,16 +170,26 @@ def main():
 
 
         #  Step 2: After execution finishes, fetch artifact folder
-        folder = fetch_artifact_id(FEATURE_TAG)
-        if folder:
-            print(f" Artifact folder: {folder}")
-
-            # Step 3: Resolve final feature(s) from artifact_summary (always accurate)
-            final_features = resolve_feature_file_final(FEATURE_TAG, folder)
-            if final_features:
-                print(f"Final resolved feature(s) for tag {FEATURE_TAG}: {final_features}")
-            else:
-                print(" Could not resolve final feature mapping from artifact summary.")
+            folder = fetch_artifact_id(FEATURE_TAG)
+            if folder:
+                print(f"✔ Artifact folder found: {folder}")
+            
+                # Step 3: Check for artifact summary
+                try:
+                    final_features = resolve_feature_file_final(FEATURE_TAG, folder)
+                except requests.HTTPError:
+                    print("⚠ Artifact summary not available, parsing local logs...")
+            
+                # Step 4: Parse logs in folder to get scenario pass/fail
+                summary_file = f"/path/to/artifacts/{folder}/execution_summary.json"  # adjust path
+                if os.path.exists(summary_file):
+                    with open(summary_file) as f:
+                        summary_data = json.load(f)
+                    for feature in summary_data.get("features", []):
+                        for scenario in feature.get("scenarios", []):
+                            print(f"Scenario {scenario['name']}: {scenario['status']}")
+                else:
+                    print("⚠ No summary JSON, consider parsing individual log files")
 
     except Exception as e:
         print(" ERROR:", str(e))
