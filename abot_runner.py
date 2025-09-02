@@ -63,11 +63,12 @@ def resolve_feature_file_live(feature_tag):
         res.raise_for_status()
         data = res.json()
         executing = data.get("executing", {})
-        if executing:
-            features = list(executing.keys())
-            print(f"👉 Currently executing features: {features}")
-            return features[0]
-        print(f"⚠ No execution reported yet, retrying... (attempt {attempt+1}/12)")
+        for feature in executing.keys():
+            if feature_tag.replace('-', '_') in feature or feature_tag.lower() in feature.lower():
+                print(f"👉 Currently executing feature for tag {feature_tag}: {feature}")
+                return feature
+
+        print(f"⚠ No execution reported yet for tag {feature_tag}, retrying... (attempt {attempt+1}/12)")
         time.sleep(10)
     print("❌ Could not resolve feature file during live execution.")
     return None
@@ -96,10 +97,11 @@ def poll_status(feature_tag, feature_file):
         data = res.json()
         executing = data.get("executing", {})
 
-        if feature_file not in executing:
-            print(f"⚠ Feature file {feature_file} not found yet.")
+        if feature_file_tag_mismatch(feature_file, feature_tag):
+            print(f"⚠ Feature file {feature_file} does not match tag {feature_tag}. Waiting...")
             time.sleep(10)
             continue
+
 
         scenarios = executing[feature_file]
         print(f"\n📌 Feature: {feature_file}")
