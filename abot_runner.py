@@ -52,17 +52,24 @@ def execute_feature():
     data = res.json()
     print("Execution response:", json.dumps(data, indent=2))
 
-def poll_live_status():
-    """Poll /detail_execution_status to show live logs"""
+def poll_live_status(timeout_minutes=30):
     print("\n=== Live Execution Log ===")
     scenario_summary = {}
+    start_time = time.time()
     finished = False
+
     while not finished:
+        elapsed = (time.time() - start_time) / 60
+        if elapsed > timeout_minutes:
+            print(f"❌ Timeout reached ({timeout_minutes} minutes). Aborting...")
+            break
+
         res = requests.get(DETAIL_STATUS_URL, headers=headers, timeout=30)
         res.raise_for_status()
         data = res.json()
         executing = data.get("executing", {})
         feature_file = None
+
         for f in executing.keys():
             if FEATURE_TAG.replace('-', '_') in f or FEATURE_TAG.lower() in f.lower():
                 feature_file = f
@@ -74,10 +81,12 @@ def poll_live_status():
             continue
 
         scenarios = executing[feature_file]
-        finished = True  # assume finished unless any step still running
+        finished = True  # assume finished unless we find a running step
+
         for scenario_name, steps in scenarios.items():
             if scenario_name not in scenario_summary:
                 scenario_summary[scenario_name] = "PASSED"
+
             print(f"\n📌 Scenario: {scenario_name}")
             for step in steps:
                 status = step.get("status", "UNKNOWN").upper()
@@ -85,14 +94,16 @@ def poll_live_status():
                 name = step.get("name", "")
                 duration = round(step.get("duration", 0), 3)
                 print(f"     [{status}] {keyword} {name} ({duration}s)")
+
                 if status == "FAILED":
                     scenario_summary[scenario_name] = "FAILED"
-                if status.lower() not in ["passed", "failed", "skipped"]:
-                    finished = False  # still executing
+                elif status not in ["PASSED", "FAILED", "SKIPPED"]:
+                    finished = False  # still running
 
         if not finished:
             time.sleep(10)
 
+    # Final summary
     print("\n=== Execution Summary ===")
     total = len(scenario_summary)
     passed = sum(1 for s in scenario_summary.values() if s == "PASSED")
@@ -102,7 +113,7 @@ def poll_live_status():
         print(f" - {sc}: {st}")
 
     if failed > 0:
-        sys.exit(1)  # mark workflow as failed
+        sys.exit(1)
     else:
         print("✔ All scenarios passed!")
 
