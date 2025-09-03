@@ -9,6 +9,7 @@ ABOT_URL = "http://10.176.27.73/abotrest"
 LOGIN_URL = f"{ABOT_URL}/abot/api/v5/login"
 CONFIG_URL = f"{ABOT_URL}/abot/api/v5/update_config_properties"
 EXECUTE_URL = f"{ABOT_URL}/abot/api/v5/feature_files/execute"
+DETAIL_STATUS_URL = f"{ABOT_URL}/abot/api/v5/detail_execution_status"
 LATEST_ARTIFACT_URL = f"{ABOT_URL}/abot/api/v5/latest_artifact_name"
 
 # Credentials and feature tag
@@ -51,68 +52,59 @@ def execute_feature():
     data = res.json()
     print("Execution response:", json.dumps(data, indent=2))
 
-def fetch_latest_artifact(tag):
-    print("Fetching latest artifact folder...")
-    for _ in range(30):
-        res = requests.get(LATEST_ARTIFACT_URL, headers=headers, timeout=30)
+def poll_live_status():
+    """Poll /detail_execution_status to show live logs"""
+    print("\n=== Live Execution Log ===")
+    scenario_summary = {}
+    finished = False
+    while not finished:
+        res = requests.get(DETAIL_STATUS_URL, headers=headers, timeout=30)
         res.raise_for_status()
         data = res.json()
-        artifact_folder = data.get("data", {}).get("latest_artifact_timestamp")
-        if artifact_folder and tag in artifact_folder:
-            print(f"✔ Found artifact folder: {artifact_folder}")
-            return artifact_folder
-        print("⚠ Artifact not ready yet, retrying...")
-        time.sleep(10)
-    print("❌ Could not fetch artifact folder")
-    return None
+        executing = data.get("executing", {})
+        feature_file = None
+        for f in executing.keys():
+            if FEATURE_TAG.replace('-', '_') in f or FEATURE_TAG.lower() in f.lower():
+                feature_file = f
+                break
 
-def read_artifact_summary(artifact_folder):
-    """Read summary.json from artifact folder to get pass/fail info"""
-    base_path = f"/abot/artifacts/{artifact_folder}"  # change path if needed
-    summary_file = os.path.join(base_path, "summary.json")
-    features_file = os.path.join(base_path, "features.json")  # if exists
+        if not feature_file:
+            print("⚠ Feature not executing yet, retrying in 10s...")
+            time.sleep(10)
+            continue
 
-    if not os.path.exists(summary_file):
-        print(f"❌ Artifact summary.json not found in {base_path}")
-        sys.exit(1)
+        scenarios = executing[feature_file]
+        finished = True  # assume finished unless any step still running
+        for scenario_name, steps in scenarios.items():
+            if scenario_name not in scenario_summary:
+                scenario_summary[scenario_name] = "PASSED"
+            print(f"\n📌 Scenario: {scenario_name}")
+            for step in steps:
+                status = step.get("status", "UNKNOWN").upper()
+                keyword = step.get("keyword", "")
+                name = step.get("name", "")
+                duration = round(step.get("duration", 0), 3)
+                print(f"     [{status}] {keyword} {name} ({duration}s)")
+                if status == "FAILED":
+                    scenario_summary[scenario_name] = "FAILED"
+                if status.lower() not in ["passed", "failed", "skipped"]:
+                    finished = False  # still executing
 
-    with open(summary_file) as f:
-        summary = json.load(f)
+        if not finished:
+            time.sleep(10)
 
-    print(f"\n📌 Feature Tag: {summary.get('feature_tag', FEATURE_TAG)}")
-    print(f"   Total Scenarios: {summary.get('total_scenarios', 0)}")
-    print(f"   Passed: {summary.get('passed_scenarios', 0)}")
-    print(f"   Failed: {summary.get('failed_scenarios', 0)}")
+    print("\n=== Execution Summary ===")
+    total = len(scenario_summary)
+    passed = sum(1 for s in scenario_summary.values() if s == "PASSED")
+    failed = sum(1 for s in scenario_summary.values() if s == "FAILED")
+    print(f"Total scenarios: {total}, Passed: {passed}, Failed: {failed}")
+    for sc, st in scenario_summary.items():
+        print(f" - {sc}: {st}")
 
-    # Print each scenario status
-    failed_scenarios = []
-    for scenario in summary.get("scenarios", []):
-        name = scenario.get("name")
-        status = scenario.get("status")
-        print(f"   - {name}: {status}")
-        if status.lower() != "passed":
-            failed_scenarios.append(name)
-
-    # Optional: detailed per-feature steps if features.json exists
-    if os.path.exists(features_file):
-        with open(features_file) as f:
-            features = json.load(f)
-            for feature in features:
-                print(f"\n📌 Feature: {feature.get('name')}")
-                for scenario_name, steps in feature.get("scenarios", {}).items():
-                    print(f"   Scenario: {scenario_name}")
-                    for step in steps:
-                        st = step.get("status", "UNKNOWN")
-                        kw = step.get("keyword", "")
-                        nm = step.get("name", "")
-                        dur = round(step.get("duration", 0), 3)
-                        print(f"     [{st}] {kw} {nm} ({dur}s)")
-
-    if failed_scenarios:
-        print(f"\n❌ Failed Scenarios: {failed_scenarios}")
-        sys.exit(1)  # mark GitHub Actions as failed
+    if failed > 0:
+        sys.exit(1)  # mark workflow as failed
     else:
-        print("\n✔ All scenarios passed!")
+        print("✔ All scenarios passed!")
 
 def main():
     print("=== ABot Test Automation Started ===")
@@ -120,14 +112,7 @@ def main():
         login()
         update_config()
         execute_feature()
-
-        artifact_folder = fetch_latest_artifact(FEATURE_TAG)
-        if not artifact_folder:
-            print("❌ Could not retrieve artifact folder, aborting.")
-            sys.exit(1)
-
-        read_artifact_summary(artifact_folder)
-
+        poll_live_status()
     except Exception as e:
         print("❌ ERROR:", str(e))
         sys.exit(1)
