@@ -11,7 +11,7 @@ LOGIN_URL = f"{ABOT_URL}/abot/api/v5/login"
 CONFIG_URL = f"{ABOT_URL}/abot/api/v5/update_config_properties"
 EXECUTE_URL = f"{ABOT_URL}/abot/api/v5/feature_files/execute"
 LATEST_ARTIFACT_URL = f"{ABOT_URL}/abot/api/v5/latest_artifact_name"
-EXEC_FEATURE_DETAILS_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureDetails"
+SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary"
 
 # Credentials and feature tag
 USERNAME = "ajeesh@cazelabs.com"
@@ -70,49 +70,36 @@ def fetch_latest_artifact(tag):
     print("❌ Could not fetch artifact for tag")
     return None
 
-def fetch_detailed_report(folder):
-    """Fetch all feature execution details"""
-    # Properly encode folder and feature details
-    encoded_folder = urllib.parse.quote(folder, safe=":-_.")  # keep colon, dash, dot
-    feature_file = f"{FEATURE_TAG}.feature"
-    encoded_feature_file = urllib.parse.quote(feature_file, safe="-_.")
-    encoded_feature_id = urllib.parse.quote(FEATURE_TAG, safe="-_.")
+def fetch_summary_report(folder):
+    """Fetch summary report: passed/failed counts and failure reasons"""
+    encoded_folder = urllib.parse.quote(folder, safe=":-_.")
+    url = f"{SUMMARY_URL}?artifactId={encoded_folder}"
 
-    url = f"{EXEC_FEATURE_DETAILS_URL}?foldername={encoded_folder}&featurename={encoded_feature_file}&featureId={encoded_feature_id}"
+    res = requests.get(url, headers=headers, timeout=30)
+    res.raise_for_status()
+    data = res.json()
+    features = data.get("features", [])
+    if not features:
+        print("⚠ No summary data found")
+        return False
 
-    for attempt in range(20):
-        try:
-            res = requests.get(url, headers=headers, timeout=30)
-            if res.status_code == 404:
-                print(f"⚠ Detailed report not ready yet, attempt {attempt+1}/20")
-                time.sleep(10)
-                continue
-            res.raise_for_status()
-            data = res.json()
-            features = data.get("features", [])
-            if not features:
-                print("⚠ No feature data found yet, retrying...")
-                time.sleep(10)
-                continue
+    print("\n=== Execution Summary ===")
+    for feature in features:
+        feature_name = feature.get("name", "UNKNOWN")
+        total = feature.get("total_scenarios", 0)
+        passed = feature.get("passed_scenarios", 0)
+        failed = feature.get("failed_scenarios", 0)
+        print(f"\n📌 Feature: {feature_name}")
+        print(f"   Total: {total}, Passed: {passed}, Failed: {failed}")
 
-            # Print all feature, scenario, step details
-            for feature in features:
-                feature_name = feature.get("name", "UNKNOWN")
-                print(f"\n📌 Feature: {feature_name}")
-                scenarios = feature.get("scenarios", {})
-                for scenario_name, steps in scenarios.items():
-                    print(f"   Scenario: {scenario_name}")
-                    for step in steps:
-                        status = step.get("status", "UNKNOWN").upper()
-                        keyword = step.get("keyword", "")
-                        name = step.get("name", "")
-                        duration = round(step.get("duration", 0), 3)
-                        print(f"     [{status}] {keyword} {name} ({duration}s)")
-            return True
-        except requests.HTTPError as e:
-            print(f"❌ HTTP error: {e}, retrying...")
-            time.sleep(10)
-    return False
+        failed_scenarios = feature.get("failed_scenarios_list", [])
+        if failed_scenarios:
+            print("   ❌ Failed Scenarios:")
+            for fs in failed_scenarios:
+                scenario_name = fs.get("scenario", "UNKNOWN")
+                reason = fs.get("reason", "UNKNOWN")
+                print(f"     - {scenario_name}: {reason}")
+    return True
 
 def main():
     print("=== ABot Test Automation Started ===")
@@ -126,9 +113,9 @@ def main():
             print("❌ Could not retrieve artifact, aborting.")
             return
 
-        success = fetch_detailed_report(artifact_id)  # ✅ fetch all details
+        success = fetch_summary_report(artifact_id)  # ✅ fetch execution summary
         if not success:
-            print("⚠ No detailed report available.")
+            print("⚠ No summary report available.")
 
     except Exception as e:
         print("❌ ERROR:", str(e))
