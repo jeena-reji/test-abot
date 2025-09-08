@@ -3,6 +3,7 @@ import time
 import sys
 import os
 import json
+import urllib.parse
 
 # ABot endpoints
 ABOT_URL = "http://10.176.27.73/abotrest"
@@ -10,7 +11,6 @@ LOGIN_URL = f"{ABOT_URL}/abot/api/v5/login"
 CONFIG_URL = f"{ABOT_URL}/abot/api/v5/update_config_properties"
 EXECUTE_URL = f"{ABOT_URL}/abot/api/v5/feature_files/execute"
 LATEST_ARTIFACT_URL = f"{ABOT_URL}/abot/api/v5/latest_artifact_name"
-SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary"
 EXEC_FEATURE_DETAILS_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureDetails"
 EXEC_FAILURE_DETAILS_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFailureDetails"
 
@@ -63,7 +63,6 @@ def fetch_latest_artifact(tag):
         artifact_folder = data.get("data", {}).get("latest_artifact_timestamp")
 
         if artifact_folder:
-            # ✅ Always return whatever artifact name comes from API
             print(f"✔ Found artifact folder: {artifact_folder}")
             return artifact_folder
 
@@ -71,7 +70,6 @@ def fetch_latest_artifact(tag):
         time.sleep(10)
     print("❌ Could not fetch artifact for tag")
     return None
-
 
 def fetch_failed_steps(folder):
     print("Fetching failed steps...")
@@ -101,8 +99,14 @@ def fetch_failed_steps(folder):
     print("✔ No failed steps. All scenarios passed!")
 
 def fetch_detailed_report(folder):
-    """Fetch detailed per-feature results"""
-    url = f"{EXEC_FEATURE_DETAILS_URL}?artifactId={folder}"
+    """Fetch detailed per-feature results using execFeatureDetails"""
+    encoded_folder = urllib.parse.quote(folder, safe="")
+    feature_file = f"{FEATURE_TAG}.feature"
+    encoded_feature_file = urllib.parse.quote(feature_file, safe="")
+    encoded_feature_id = urllib.parse.quote(FEATURE_TAG, safe="")
+
+    url = f"{EXEC_FEATURE_DETAILS_URL}?foldername={encoded_folder}&featurename={encoded_feature_file}&featureId={encoded_feature_id}"
+
     for attempt in range(20):
         try:
             res = requests.get(url, headers=headers, timeout=30)
@@ -117,7 +121,6 @@ def fetch_detailed_report(folder):
                 print("⚠ No feature data found")
                 return False
 
-            # 🔥 Loop over all features found
             for feature in features:
                 feature_name = feature.get("name", "UNKNOWN")
                 print(f"\n📌 Feature: {feature_name}")
@@ -136,23 +139,6 @@ def fetch_detailed_report(folder):
             time.sleep(10)
     return False
 
-
-def fetch_summary_report(artifact_id):
-    """Fetch summary report from artifact"""
-    print("\n=== Summary Report ===")
-    url = f"{SUMMARY_URL}?artifactId={artifact_id}"
-    res = requests.get(url, headers=headers, timeout=30)
-    res.raise_for_status()
-    data = res.json()
-    features = data.get("features", [])
-    for feature in features:
-        print(f"📌 Feature: {feature.get('name')}")
-        print(f"   Total Scenarios: {feature.get('total_scenarios', 0)}")
-        print(f"   Passed: {feature.get('passed_scenarios', 0)}")
-        print(f"   Failed: {feature.get('failed_scenarios', 0)}")
-        print(f"   Status: {feature.get('status', 'UNKNOWN')}")
-
-
 def main():
     print("=== ABot Test Automation Started ===")
     try:
@@ -165,20 +151,17 @@ def main():
             print("❌ Could not retrieve artifact, aborting.")
             return
 
-        fetch_summary_report(artifact_id)        # ✅ pass/fail counts
         fetch_failed_steps(artifact_id)          # ✅ failure reasons
-        success = fetch_detailed_report(artifact_id)  # ✅ step-level logs
+        success = fetch_detailed_report(artifact_id)  # ✅ detailed step-level logs
 
         if not success:
-            print("⚠ No detailed report available, only summary shown.")
+            print("⚠ No detailed report available.")
 
     except Exception as e:
         print("❌ ERROR:", str(e))
         sys.exit(1)
     finally:
         print("=== ABot Test Automation Completed ===")
-
-
 
 if __name__ == "__main__":
     main()
