@@ -1,4 +1,4 @@
-import requests, time, sys, json, os, urllib.parse
+import requests, time, sys, json, os
 from datetime import datetime
 
 # ----------------- CONFIG -----------------
@@ -8,12 +8,11 @@ CONFIG_URL = f"{ABOT_URL}/abot/api/v5/update_config_properties"
 EXECUTE_URL = f"{ABOT_URL}/abot/api/v5/feature_files/execute"
 STATUS_URL = f"{ABOT_URL}/abot/api/v5/execution_status"
 ARTIFACT_URL = f"{ABOT_URL}/abot/api/v5/latest_artifact_name"
-DETAILS_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureDetails"
 
 USERNAME = "ajeesh@cazelabs.com"
 PASSWORD = "ajeesh1234"
 FEATURE_TAG = "5gs-initial-registration-with-integrity-and-ciphering-sdcore-0.1.2"
-FEATURE_ID = "5GS_Initial_Registration_with_Integrity_and_Ciphering.feature"
+FEATURE_NAME = "5GS_Initial_Registration_with_Integrity_and_Ciphering.feature"
 
 headers = {"Content-Type": "application/json"}
 
@@ -66,11 +65,10 @@ def poll_status():
         time.sleep(10)
 
 def get_latest_artifact():
-    """Fetch the latest artifact name and URL from ABot."""
     res = requests.get(ARTIFACT_URL, headers=headers)
     res.raise_for_status()
     data = res.json()["data"]
-    
+
     latest_artifact_name = data["latest_artifact_timestamp"]
     artifact_urls = data.get("artifact_urls", [])
 
@@ -83,15 +81,12 @@ def get_latest_artifact():
     return latest_artifact_name
 
 def download_and_print_log(folder):
-    """Download ABot execution log using properly URL-encoded folder name."""
     log_url = f"{ABOT_URL}/abot/api/v5/artifacts/logs"
-    
     safe_folder = folder.replace(":", "%3A").replace("@", "%40")
     params = {"foldername": safe_folder}
 
     print("📥 Downloading ABot execution log...")
     res = requests.get(log_url, headers=headers, params=params)
-    
     if res.status_code == 404:
         print(f"⚠️ Log not found for folder: {folder}")
         return
@@ -104,37 +99,37 @@ def download_and_print_log(folder):
     with open("abot_log.log", "w") as f:
         f.write(log_text)
 
-def get_artifact_details(folder):
+def get_artifact_details(folder, feature_name):
     print("📊 Fetching detailed artifact info...")
     details_url = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureDetails"
-    
-    # URL encode folder name safely
     safe_folder = folder.replace(":", "%3A").replace("@", "%40")
-    
-    # Parameters
+
     params = {
         "foldername": safe_folder,
-        "featurename": "5GS_Initial_Registration_with_Integrity_and_Ciphering.feature",
-        "featureId": "5gs-initial-registration-with-integrity-and-ciphering-sdcore-0.1.2"
+        "featurename": feature_name,
+        "featureId": FEATURE_TAG  # same as feature tag
     }
-    
+
     try:
         res = requests.get(details_url, headers=headers, params=params)
         res.raise_for_status()
         data = res.json()
         if data.get("status") != "ok":
             print(f"⚠️ Error fetching artifact details: {data.get('message')}")
-            return {}
-        
+            return None
+
         os.makedirs("results", exist_ok=True)
         with open("results/artifact_details.json", "w") as f:
             json.dump(data, f, indent=2)
-        
-        print("✅
 
+        print("✅ Artifact details saved to results/artifact_details.json")
+        return data["featureDetails"]["result"]
+
+    except Exception as e:
+        print(f"⚠️ Error fetching artifact details: {e}")
+        return None
 
 def generate_reports_from_details(details, tag):
-    """Generate reports from execFeatureDetails data."""
     total_scenarios = sum(f["senario"]["total"] for f in details["featureReport"])
     passed = sum(f["senario"]["passed"] for f in details["featureReport"])
     failed = sum(f["senario"]["failed"] for f in details["featureReport"])
@@ -158,14 +153,9 @@ def generate_reports_from_details(details, tag):
     base_name = f"results/{safe_tag}_{timestamp}"
     os.makedirs("results", exist_ok=True)
 
-    # Plain text summary
+    # Plain text
     with open(f"{base_name}_summary.txt", "w") as f:
-        f.write(f"Feature Tag: {tag}\n")
-        f.write(f"Executed By: {USERNAME}\n")
-        f.write(f"Total Scenarios: {total_scenarios}\n")
-        f.write(f"Passed: {passed}\n")
-        f.write(f"Failed: {failed}\n")
-        f.write(f"Status: {status}\n")
+        f.write(f"Feature Tag: {tag}\nExecuted By: {USERNAME}\nTotal Scenarios: {total_scenarios}\nPassed: {passed}\nFailed: {failed}\nStatus: {status}\n")
 
     # JSON
     with open(f"{base_name}_result.json", "w") as f:
@@ -185,8 +175,7 @@ def generate_reports_from_details(details, tag):
             <li><b>Status:</b> <span style="color:{'green' if status=='PASS' else 'red'}">{status}</span></li>
         </ul>
         <pre>{json.dumps(summary, indent=4)}</pre>
-        </body></html>
-        """)
+        </body></html>""")
     print("📄 Reports generated in /results folder.")
 
 def check_result_from_details(details):
@@ -203,17 +192,11 @@ if __name__ == "__main__":
     update_config()
     execute_feature()
     poll_status()
-    
-    folder = get_latest_artifact()        
+
+    folder = get_latest_artifact()
     download_and_print_log(folder)
 
-    # fetch detailed artifact JSON
-    artifact_details = get_artifact_details(
-        folder,
-        featurename="5GS_Initial_Registration_with_Integrity_and_Ciphering.feature",
-        featureId="5gs-initial-registration-with-integrity-and-ciphering-sdcore-0.1.2"
-    )
-
+    artifact_details = get_artifact_details(folder, FEATURE_NAME)
     if artifact_details:
         generate_reports_from_details(artifact_details, FEATURE_TAG)
         check_result_from_details(artifact_details)
