@@ -19,7 +19,7 @@ jobs:
         run: pip install requests
 
       - name: Run ABot tags
-        run: python abot_1.py | tee abot_log.log
+        run: python abot_1.py 
 
       - name: Read artifact folder path
         if: always()
