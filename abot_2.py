@@ -104,25 +104,34 @@ def download_and_print_log(folder):
     with open("abot_log.log", "w") as f:
         f.write(log_text)
 
-def get_artifact_details(folder, feature_id, feature_name=""):
-    """Fetch detailed artifact execution info using execFeatureDetails API."""
+def get_artifact_details(folder):
+    print("📊 Fetching detailed artifact info...")
+    details_url = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureDetails"
+    
+    # URL encode folder name safely
     safe_folder = folder.replace(":", "%3A").replace("@", "%40")
-    params = {"foldername": safe_folder, "featureId": feature_id, "featurename": feature_name}
-    res = requests.get(DETAILS_URL, headers=headers, params=params)
     
-    if res.status_code == 404:
-        print(f"⚠️ Artifact details not found for folder: {folder}, feature: {feature_id}")
-        return None
+    # Parameters
+    params = {
+        "foldername": safe_folder,
+        "featurename": "5GS_Initial_Registration_with_Integrity_and_Ciphering.feature",
+        "featureId": "5GS_Initial_Registration_with_Integrity_and_Ciphering.feature"
+    }
+    
+    try:
+        res = requests.get(details_url, headers=headers, params=params)
+        res.raise_for_status()
+        data = res.json()
+        if data.get("status") != "ok":
+            print(f"⚠️ Error fetching artifact details: {data.get('message')}")
+            return {}
+        
+        os.makedirs("results", exist_ok=True)
+        with open("results/artifact_details.json", "w") as f:
+            json.dump(data, f, indent=2)
+        
+        print("✅
 
-    res.raise_for_status()
-    data = res.json()
-    
-    if data.get("status") == "ok":
-        print("✅ Artifact details fetched successfully.")
-        return data["featureDetails"]["result"]
-    else:
-        print(f"⚠️ Error fetching artifact details: {data.get('message')}")
-        return None
 
 def generate_reports_from_details(details, tag):
     """Generate reports from execFeatureDetails data."""
@@ -195,13 +204,19 @@ if __name__ == "__main__":
     execute_feature()
     poll_status()
     
-    folder = get_latest_artifact()
+    folder = get_latest_artifact()        
     download_and_print_log(folder)
 
-    details = get_artifact_details(folder, FEATURE_ID)
-    if details:
-        generate_reports_from_details(details, FEATURE_TAG)
-        check_result_from_details(details)
+    # fetch detailed artifact JSON
+    artifact_details = get_artifact_details(
+        folder,
+        featurename="5GS_Initial_Registration_with_Integrity_and_Ciphering.feature",
+        featureId="5gs-initial-registration-with-integrity-and-ciphering-sdcore-0.1.2"
+    )
+
+    if artifact_details:
+        generate_reports_from_details(artifact_details, FEATURE_TAG)
+        check_result_from_details(artifact_details)
     else:
         print("❌ Could not fetch artifact details. Exiting.")
         sys.exit(1)
