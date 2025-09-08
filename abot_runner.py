@@ -55,16 +55,18 @@ def execute_feature():
     print("Execution response:", json.dumps(data, indent=2))
 
 def fetch_latest_artifact(tag):
-    """Poll until the latest artifact matching the feature tag is available"""
-    print("Fetching latest artifact for tag:", tag)
-    for _ in range(30):  # retry up to 30 times
+    print(f"Fetching latest artifact for tag: {tag}")
+    for _ in range(30):
         res = requests.get(LATEST_ARTIFACT_URL, headers=headers, timeout=30)
         res.raise_for_status()
-        data = res.json().get("data", {})
-        artifact_name = data.get("latest_artifact_name")
-        if artifact_name and tag in artifact_name:
-            print(f"✔ Found artifact: {artifact_name}")
-            return artifact_name
+        data = res.json()
+        artifact_folder = data.get("data", {}).get("latest_artifact_timestamp")
+
+        if artifact_folder:
+            # ✅ Always return whatever artifact name comes from API
+            print(f"✔ Found artifact folder: {artifact_folder}")
+            return artifact_folder
+
         print("⚠ Artifact not ready yet, retrying...")
         time.sleep(10)
     print("❌ Could not fetch artifact for tag")
