@@ -1,5 +1,7 @@
 import requests, time, sys, json, os
 from datetime import datetime
+from urllib.parse import quote
+
 
 # ----------------- CONFIG -----------------
 ABOT_URL = "http://10.176.27.73/abotrest"
@@ -82,7 +84,8 @@ def get_latest_artifact():
 
 def download_and_print_log(folder):
     log_url = f"{ABOT_URL}/abot/api/v5/artifacts/logs"
-    safe_folder = folder.replace(":", "%3A").replace("@", "%40")
+    safe_folder = quote(folder, safe='')
+
     params = {"foldername": safe_folder}
 
     print("📥 Downloading ABot execution log...")
@@ -102,7 +105,8 @@ def download_and_print_log(folder):
 def get_artifact_details(folder, feature_name):
     print("📊 Fetching detailed artifact info...")
     details_url = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureDetails"
-    safe_folder = folder.replace(":", "%3A").replace("@", "%40")
+    safe_folder = quote(folder, safe='')
+
 
     params = {
         "foldername": safe_folder,
