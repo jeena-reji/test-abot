@@ -10,7 +10,7 @@ LOGIN_URL = f"{ABOT_URL}/abot/api/v5/login"
 CONFIG_URL = f"{ABOT_URL}/abot/api/v5/update_config_properties"
 EXECUTE_URL = f"{ABOT_URL}/abot/api/v5/feature_files/execute"
 LATEST_ARTIFACT_URL = f"{ABOT_URL}/abot/api/v5/latest_artifact_name"
-DASHBOARD_URL = f"{ABOT_URL}/abot/api/v5/dashBoard_cards"
+SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary"
 EXEC_FEATURE_DETAILS_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureDetails"
 EXEC_FAILURE_DETAILS_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFailureDetails"
 
@@ -55,19 +55,21 @@ def execute_feature():
     print("Execution response:", json.dumps(data, indent=2))
 
 def fetch_latest_artifact(tag):
-    print("Fetching latest artifact folder...")
-    for _ in range(30):
+    """Poll until the latest artifact matching the feature tag is available"""
+    print("Fetching latest artifact for tag:", tag)
+    for _ in range(30):  # retry up to 30 times
         res = requests.get(LATEST_ARTIFACT_URL, headers=headers, timeout=30)
         res.raise_for_status()
-        data = res.json()
-        artifact_folder = data.get("data", {}).get("latest_artifact_timestamp")
-        if artifact_folder and tag in artifact_folder:
-            print(f"✔ Found artifact folder: {artifact_folder}")
-            return artifact_folder
+        data = res.json().get("data", {})
+        artifact_name = data.get("latest_artifact_name")
+        if artifact_name and tag in artifact_name:
+            print(f"✔ Found artifact: {artifact_name}")
+            return artifact_name
         print("⚠ Artifact not ready yet, retrying...")
         time.sleep(10)
-    print("❌ Could not fetch artifact folder")
+    print("❌ Could not fetch artifact for tag")
     return None
+
 
 def fetch_failed_steps(folder):
     print("Fetching failed steps...")
@@ -133,20 +135,21 @@ def fetch_detailed_report(folder):
     return False
 
 
-def fetch_summary_report(folder):
-    """Fallback to summary report"""
-    print("Fetching summary report...")
-    res = requests.get(DASHBOARD_URL, headers=headers, timeout=30)
+def fetch_summary_report(artifact_id):
+    """Fetch summary report from artifact"""
+    print("\n=== Summary Report ===")
+    url = f"{SUMMARY_URL}?artifactId={artifact_id}"
+    res = requests.get(url, headers=headers, timeout=30)
     res.raise_for_status()
     data = res.json()
     features = data.get("features", [])
     for feature in features:
-        if feature.get("tag") == FEATURE_TAG:
-            print(f"\n📌 Feature Tag: {FEATURE_TAG}")
-            print(f"   Total Scenarios: {feature.get('total_scenarios', 0)}")
-            print(f"   Passed: {feature.get('passed_scenarios', 0)}")
-            print(f"   Failed: {feature.get('failed_scenarios', 0)}")
-            print(f"   Overall Status: {feature.get('status', 'UNKNOWN')}")
+        print(f"📌 Feature: {feature.get('name')}")
+        print(f"   Total Scenarios: {feature.get('total_scenarios', 0)}")
+        print(f"   Passed: {feature.get('passed_scenarios', 0)}")
+        print(f"   Failed: {feature.get('failed_scenarios', 0)}")
+        print(f"   Status: {feature.get('status', 'UNKNOWN')}")
+
 
 def main():
     print("=== ABot Test Automation Started ===")
@@ -155,23 +158,24 @@ def main():
         update_config()
         execute_feature()
 
-        artifact_folder = fetch_latest_artifact(FEATURE_TAG)
-        if not artifact_folder:
-            print("❌ Could not retrieve artifact folder, aborting.")
+        artifact_id = fetch_latest_artifact(FEATURE_TAG)
+        if not artifact_id:
+            print("❌ Could not retrieve artifact, aborting.")
             return
-        fetch_failed_steps(artifact_folder)
 
-        # ✅ feature name is detected automatically inside fetch_detailed_report
-        success = fetch_detailed_report(artifact_folder)
+        fetch_summary_report(artifact_id)        # ✅ pass/fail counts
+        fetch_failed_steps(artifact_id)          # ✅ failure reasons
+        success = fetch_detailed_report(artifact_id)  # ✅ step-level logs
+
         if not success:
-            print("⚠ Falling back to summary report")
-            fetch_summary_report(artifact_folder)
+            print("⚠ No detailed report available, only summary shown.")
 
     except Exception as e:
         print("❌ ERROR:", str(e))
         sys.exit(1)
     finally:
         print("=== ABot Test Automation Completed ===")
+
 
 
 if __name__ == "__main__":
