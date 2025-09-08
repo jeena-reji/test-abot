@@ -8,11 +8,12 @@ CONFIG_URL = f"{ABOT_URL}/abot/api/v5/update_config_properties"
 EXECUTE_URL = f"{ABOT_URL}/abot/api/v5/feature_files/execute"
 STATUS_URL = f"{ABOT_URL}/abot/api/v5/execution_status"
 ARTIFACT_URL = f"{ABOT_URL}/abot/api/v5/latest_artifact_name"
-SUMMARY_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary"
+DETAILS_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureDetails"
 
 USERNAME = "ajeesh@cazelabs.com"
 PASSWORD = "ajeesh1234"
 FEATURE_TAG = "5gs-initial-registration-with-integrity-and-ciphering-sdcore-0.1.2"
+FEATURE_ID = "5GS_Initial_Registration_with_Integrity_and_Ciphering.feature"
 
 headers = {"Content-Type": "application/json"}
 
@@ -85,7 +86,6 @@ def download_and_print_log(folder):
     """Download ABot execution log using properly URL-encoded folder name."""
     log_url = f"{ABOT_URL}/abot/api/v5/artifacts/logs"
     
-    # Only encode @ and : (common special characters in folder name)
     safe_folder = folder.replace(":", "%3A").replace("@", "%40")
     params = {"foldername": safe_folder}
 
@@ -97,68 +97,80 @@ def download_and_print_log(folder):
         return
 
     res.raise_for_status()
-
     log_text = res.text
     print("📜 ABot Execution Log:\n")
     print(log_text)
 
-    # Save to file as well
     with open("abot_log.log", "w") as f:
         f.write(log_text)
 
-
-def get_summary(folder):
-    print("📊 Fetching execution summary...")
+def get_artifact_details(folder, feature_id, feature_name=""):
+    """Fetch detailed artifact execution info using execFeatureDetails API."""
     safe_folder = folder.replace(":", "%3A").replace("@", "%40")
-    params = {"foldername": safe_folder, "page": 1, "limit": 9998}
-    res = requests.get(SUMMARY_URL, headers=headers, params=params)
+    params = {"foldername": safe_folder, "featureId": feature_id, "featurename": feature_name}
+    res = requests.get(DETAILS_URL, headers=headers, params=params)
     
     if res.status_code == 404:
-        print(f"⚠️ Summary not found for folder: {folder}")
-        return {}
+        print(f"⚠️ Artifact details not found for folder: {folder}, feature: {feature_id}")
+        return None
 
     res.raise_for_status()
-    summary = res.json()
-    os.makedirs("results", exist_ok=True)
-    with open("results/execution_summary.json", "w") as f:
-        json.dump(summary, f, indent=2)
-    return summary
+    data = res.json()
+    
+    if data.get("status") == "ok":
+        print("✅ Artifact details fetched successfully.")
+        return data["featureDetails"]["result"]
+    else:
+        print(f"⚠️ Error fetching artifact details: {data.get('message')}")
+        return None
 
-def generate_reports(summary, tag):
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    result = summary["feature_summary"]["result"]
-    failed = result["totalScenarios"]["totalScenariosFailed"]["totalScenariosFailedNumber"]
-    passed = result["totalScenarios"]["totalScenariosPassed"]["totalScenariosPassedNumber"]
-    total = result["totalScenarios"]["totalScenariosNumber"]
-
+def generate_reports_from_details(details, tag):
+    """Generate reports from execFeatureDetails data."""
+    total_scenarios = sum(f["senario"]["total"] for f in details["featureReport"])
+    passed = sum(f["senario"]["passed"] for f in details["featureReport"])
+    failed = sum(f["senario"]["failed"] for f in details["featureReport"])
     status = "PASS" if failed == 0 else "FAIL"
-    exec_user = summary["feature_summary"]["executed_by"]
 
+    summary = {
+        "feature_summary": {
+            "result": {
+                "totalScenarios": {
+                    "totalScenariosNumber": total_scenarios,
+                    "totalScenariosPassed": {"totalScenariosPassedNumber": passed},
+                    "totalScenariosFailed": {"totalScenariosFailedNumber": failed}
+                }
+            },
+            "executed_by": USERNAME
+        }
+    }
+
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     safe_tag = tag.replace("@", "").replace(".", "_").replace("-", "_")
     base_name = f"results/{safe_tag}_{timestamp}"
+    os.makedirs("results", exist_ok=True)
 
     # Plain text summary
     with open(f"{base_name}_summary.txt", "w") as f:
         f.write(f"Feature Tag: {tag}\n")
-        f.write(f"Executed By: {exec_user}\n")
-        f.write(f"Total Scenarios: {total}\n")
+        f.write(f"Executed By: {USERNAME}\n")
+        f.write(f"Total Scenarios: {total_scenarios}\n")
         f.write(f"Passed: {passed}\n")
         f.write(f"Failed: {failed}\n")
         f.write(f"Status: {status}\n")
 
-    # JSON result
+    # JSON
     with open(f"{base_name}_result.json", "w") as f:
         json.dump(summary, f, indent=2)
 
-    # HTML report
+    # HTML
     with open(f"{base_name}_report.html", "w") as f:
         f.write(f"""<html><head><title>Test Report - {tag}</title></head>
         <body>
         <h1>Test Report</h1>
         <ul>
             <li><b>Feature Tag:</b> {tag}</li>
-            <li><b>Executed By:</b> {exec_user}</li>
-            <li><b>Total:</b> {total}</li>
+            <li><b>Executed By:</b> {USERNAME}</li>
+            <li><b>Total:</b> {total_scenarios}</li>
             <li><b>Passed:</b> {passed}</li>
             <li><b>Failed:</b> {failed}</li>
             <li><b>Status:</b> <span style="color:{'green' if status=='PASS' else 'red'}">{status}</span></li>
@@ -166,14 +178,10 @@ def generate_reports(summary, tag):
         <pre>{json.dumps(summary, indent=4)}</pre>
         </body></html>
         """)
-    print("📄 Reports generated in /results folder:")
-    print(f"- Summary: {base_name}_summary.txt")
-    print(f"- JSON:    {base_name}_result.json")
-    print(f"- HTML:    {base_name}_report.html")
+    print("📄 Reports generated in /results folder.")
 
-def check_result(summary):
-    result = summary["feature_summary"]["result"]
-    failed = result["totalScenarios"]["totalScenariosFailed"]["totalScenariosFailedNumber"]
+def check_result_from_details(details):
+    failed = sum(f["senario"]["failed"] for f in details["featureReport"])
     if failed > 0:
         print(f"❌ Test failed: {failed} scenario(s) failed.")
         sys.exit(1)
@@ -187,10 +195,13 @@ if __name__ == "__main__":
     execute_feature()
     poll_status()
     
-    # Fetch latest artifact name and URL
-    folder = get_latest_artifact()        
+    folder = get_latest_artifact()
     download_and_print_log(folder)
-    
-    summary = get_summary(folder)
-    generate_reports(summary, FEATURE_TAG)
-    check_result(summary)
+
+    details = get_artifact_details(folder, FEATURE_ID)
+    if details:
+        generate_reports_from_details(details, FEATURE_TAG)
+        check_result_from_details(details)
+    else:
+        print("❌ Could not fetch artifact details. Exiting.")
+        sys.exit(1)
