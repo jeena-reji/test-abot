@@ -76,12 +76,20 @@ def poll_both_statuses():
         for feature, steps in detail_data.items():
             print(f"\nFeature: {feature}")
             for step in steps:
-                # Some fields may be missing; provide defaults
-                name = step.get("name") or step.get("keyword") or "Unknown Step"
-                keyword = step.get("keyword") or ""
-                status = step.get("status", "unknown")
-                duration = step.get("duration", "N/A")
-                timestamp = step.get("timestamp", "N/A")
+                # Handle both dict and string step formats
+                if isinstance(step, dict):
+                    name = step.get("name") or step.get("keyword") or "Unknown Step"
+                    keyword = step.get("keyword") or ""
+                    status = step.get("status", "unknown")
+                    duration = step.get("duration", "N/A")
+                    timestamp = step.get("timestamp", "N/A")
+                else:
+                    # If step is just a string
+                    name = str(step)
+                    keyword = ""
+                    status = "unknown"
+                    duration = "N/A"
+                    timestamp = "N/A"
 
                 print(f"{keyword} {name} → {status.upper()} (Duration: {duration}s, Timestamp: {timestamp})")
 
@@ -99,6 +107,7 @@ def poll_both_statuses():
         else:
             print("🟡 Still running... waiting 10s")
             time.sleep(10)
+
 
 
 def download_and_print_log(folder):
