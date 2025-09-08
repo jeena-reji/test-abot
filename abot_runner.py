@@ -71,35 +71,47 @@ def fetch_latest_artifact(tag):
     return None
 
 def fetch_summary_report(folder):
-    """Fetch summary report: passed/failed counts and failure reasons"""
+    """Fetch execution summary (passed/failed scenarios & steps)"""
     encoded_folder = urllib.parse.quote(folder, safe=":-_.")
-    url = f"{SUMMARY_URL}?artifactId={encoded_folder}"
+    url = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary?foldername={encoded_folder}&page=1&limit=9999"
 
-    res = requests.get(url, headers=headers, timeout=30)
-    res.raise_for_status()
-    data = res.json()
-    features = data.get("features", [])
-    if not features:
-        print("⚠ No summary data found")
-        return False
+    for attempt in range(20):
+        try:
+            res = requests.get(url, headers=headers, timeout=30)
+            if res.status_code == 404:
+                print(f"⚠ Summary report not ready yet, attempt {attempt+1}/20")
+                time.sleep(10)
+                continue
+            res.raise_for_status()
+            data = res.json()
 
-    print("\n=== Execution Summary ===")
-    for feature in features:
-        feature_name = feature.get("name", "UNKNOWN")
-        total = feature.get("total_scenarios", 0)
-        passed = feature.get("passed_scenarios", 0)
-        failed = feature.get("failed_scenarios", 0)
-        print(f"\n📌 Feature: {feature_name}")
-        print(f"   Total: {total}, Passed: {passed}, Failed: {failed}")
+            if data.get("status") != "ok":
+                print("⚠ No summary data found, retrying...")
+                time.sleep(10)
+                continue
 
-        failed_scenarios = feature.get("failed_scenarios_list", [])
-        if failed_scenarios:
-            print("   ❌ Failed Scenarios:")
-            for fs in failed_scenarios:
-                scenario_name = fs.get("scenario", "UNKNOWN")
-                reason = fs.get("reason", "UNKNOWN")
-                print(f"     - {scenario_name}: {reason}")
-    return True
+            result = data.get("feature_summary", {}).get("result", {})
+            feature_data = result.get("data", {})
+            steps = feature_data.get("steps", {}).get("steps", {})
+            scenarios = feature_data.get("totalScenarios", {})
+
+            print("\n=== Execution Summary ===")
+            print(f"Total Steps - Passed: {steps.get('passed', 0)}, Failed: {steps.get('failed', 0)}, Skipped: {steps.get('skipped', 0)}, Total: {steps.get('total', 0)}")
+            print(f"Total Scenarios - Passed: {scenarios.get('totalScenariosPassed', {}).get('totalScenariosPassedNumber', 0)}, Failed: {scenarios.get('totalScenariosFailed', {}).get('totalScenariosFailedNumber', 0)}, Total: {scenarios.get('totalScenariosTotal', {}).get('totalScenariosTotalNumber', 0)}")
+
+            # Optionally print failed scenario names
+            print("\nFailed Scenarios:")
+            for sc_name, sc_data in feature_data.get("steps", {}).get("scenario", {}).items():
+                if sc_data.get("failed", 0) > 0:
+                    print(f" - {sc_name}: {sc_data.get('failed')} step(s) failed")
+            return True
+
+        except requests.HTTPError as e:
+            print(f"❌ HTTP error: {e}, retrying...")
+            time.sleep(10)
+
+    return False
+
 
 def main():
     print("=== ABot Test Automation Started ===")
@@ -113,7 +125,8 @@ def main():
             print("❌ Could not retrieve artifact, aborting.")
             return
 
-        success = fetch_summary_report(artifact_id)  # ✅ fetch execution summary
+        success = fetch_summary_report(artifact_id)
+       # ✅ fetch execution summary
         if not success:
             print("⚠ No summary report available.")
 
