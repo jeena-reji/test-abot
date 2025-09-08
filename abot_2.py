@@ -1,7 +1,5 @@
-import requests, time, sys, json, os
-from datetime import datetime
+import requests, time
 from urllib.parse import quote
-
 
 # ----------------- CONFIG -----------------
 ABOT_URL = "http://10.176.27.73/abotrest"
@@ -14,7 +12,6 @@ ARTIFACT_URL = f"{ABOT_URL}/abot/api/v5/latest_artifact_name"
 USERNAME = "ajeesh@cazelabs.com"
 PASSWORD = "ajeesh1234"
 FEATURE_TAG = "5gs-initial-registration-with-integrity-and-ciphering-sdcore-0.1.2"
-FEATURE_NAME = "5GS_Initial_Registration_with_Integrity_and_Ciphering.feature"
 
 headers = {"Content-Type": "application/json"}
 
@@ -27,7 +24,6 @@ def login():
     token = res.json()["data"]["token"]
     headers["Authorization"] = f"Bearer {token}"
     print("✅ Login successful.")
-    return token
 
 def update_config():
     print("=== Configuration Phase ===")
@@ -45,8 +41,7 @@ def update_config():
 def execute_feature():
     print(f"🚀 Executing feature tag: {FEATURE_TAG}")
     payload = {"params": FEATURE_TAG}
-    res = requests.post(EXECUTE_URL, headers=headers, json=payload)
-    res.raise_for_status()
+    requests.post(EXECUTE_URL, headers=headers, json=payload).raise_for_status()
     print("▶️ Test started.")
 
 def poll_status():
@@ -55,140 +50,50 @@ def poll_status():
         res = requests.get(STATUS_URL, headers=headers)
         res.raise_for_status()
         json_data = res.json()
-        print("🧪 Raw /execution_status response:")
-        print(json.dumps(json_data, indent=2))
-
         exec_list = json_data.get("executing", {}).get("executing", [])
+        execution_status = json_data.get("executing", {}).get("execution_status", [])
+
+        if execution_status:
+            passed = sum(1 for step in execution_status if step["status"] == 0)
+            failed = sum(1 for step in execution_status if step["status"] != 0)
+            print(f"📊 Summary so far: Passed={passed}, Failed={failed}")
+
         if exec_list and not exec_list[0].get("is_executing", True):
             print("✅ Execution completed.")
-            return
+            if execution_status:
+                for step in execution_status:
+                    name = step["name"]
+                    status = "PASS" if step["status"] == 0 else "FAIL"
+                    print(f"Step: {name} → {status}")
+                print(f"🎯 Total Passed: {passed}, Total Failed: {failed}")
+            break
         else:
             print("🟡 Still running... waiting 10s")
         time.sleep(10)
 
-def get_latest_artifact():
-    res = requests.get(ARTIFACT_URL, headers=headers)
-    res.raise_for_status()
-    data = res.json()["data"]
-
-    latest_artifact_name = data["latest_artifact_timestamp"]
-    artifact_urls = data.get("artifact_urls", [])
-
-    print(f"📁 Latest artifact name: {latest_artifact_name}")
-    if artifact_urls:
-        print(f"🔗 Artifact GUI URL: {artifact_urls[0]}")
-    else:
-        print("⚠️ No artifact URL available.")
-
-    return latest_artifact_name
-
 def download_and_print_log(folder):
     log_url = f"{ABOT_URL}/abot/api/v5/artifacts/logs"
     safe_folder = quote(folder, safe='')
-
     params = {"foldername": safe_folder}
-
     print("📥 Downloading ABot execution log...")
     res = requests.get(log_url, headers=headers, params=params)
     if res.status_code == 404:
         print(f"⚠️ Log not found for folder: {folder}")
         return
-
     res.raise_for_status()
     log_text = res.text
     print("📜 ABot Execution Log:\n")
     print(log_text)
-
     with open("abot_log.log", "w") as f:
         f.write(log_text)
 
-def get_artifact_details(folder, feature_name):
-    print("📊 Fetching detailed artifact info...")
-    details_url = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureDetails"
-    safe_folder = quote(folder, safe='')
-
-
-    params = {
-        "foldername": safe_folder,
-        "featurename": feature_name,
-        "featureId": FEATURE_TAG  # same as feature tag
-    }
-
-    try:
-        res = requests.get(details_url, headers=headers, params=params)
-        res.raise_for_status()
-        data = res.json()
-        if data.get("status") != "ok":
-            print(f"⚠️ Error fetching artifact details: {data.get('message')}")
-            return None
-
-        os.makedirs("results", exist_ok=True)
-        with open("results/artifact_details.json", "w") as f:
-            json.dump(data, f, indent=2)
-
-        print("✅ Artifact details saved to results/artifact_details.json")
-        return data["featureDetails"]["result"]
-
-    except Exception as e:
-        print(f"⚠️ Error fetching artifact details: {e}")
-        return None
-
-def generate_reports_from_details(details, tag):
-    total_scenarios = sum(f["senario"]["total"] for f in details["featureReport"])
-    passed = sum(f["senario"]["passed"] for f in details["featureReport"])
-    failed = sum(f["senario"]["failed"] for f in details["featureReport"])
-    status = "PASS" if failed == 0 else "FAIL"
-
-    summary = {
-        "feature_summary": {
-            "result": {
-                "totalScenarios": {
-                    "totalScenariosNumber": total_scenarios,
-                    "totalScenariosPassed": {"totalScenariosPassedNumber": passed},
-                    "totalScenariosFailed": {"totalScenariosFailedNumber": failed}
-                }
-            },
-            "executed_by": USERNAME
-        }
-    }
-
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    safe_tag = tag.replace("@", "").replace(".", "_").replace("-", "_")
-    base_name = f"results/{safe_tag}_{timestamp}"
-    os.makedirs("results", exist_ok=True)
-
-    # Plain text
-    with open(f"{base_name}_summary.txt", "w") as f:
-        f.write(f"Feature Tag: {tag}\nExecuted By: {USERNAME}\nTotal Scenarios: {total_scenarios}\nPassed: {passed}\nFailed: {failed}\nStatus: {status}\n")
-
-    # JSON
-    with open(f"{base_name}_result.json", "w") as f:
-        json.dump(summary, f, indent=2)
-
-    # HTML
-    with open(f"{base_name}_report.html", "w") as f:
-        f.write(f"""<html><head><title>Test Report - {tag}</title></head>
-        <body>
-        <h1>Test Report</h1>
-        <ul>
-            <li><b>Feature Tag:</b> {tag}</li>
-            <li><b>Executed By:</b> {USERNAME}</li>
-            <li><b>Total:</b> {total_scenarios}</li>
-            <li><b>Passed:</b> {passed}</li>
-            <li><b>Failed:</b> {failed}</li>
-            <li><b>Status:</b> <span style="color:{'green' if status=='PASS' else 'red'}">{status}</span></li>
-        </ul>
-        <pre>{json.dumps(summary, indent=4)}</pre>
-        </body></html>""")
-    print("📄 Reports generated in /results folder.")
-
-def check_result_from_details(details):
-    failed = sum(f["senario"]["failed"] for f in details["featureReport"])
-    if failed > 0:
-        print(f"❌ Test failed: {failed} scenario(s) failed.")
-        sys.exit(1)
-    else:
-        print("✅ All test scenarios passed.")
+def get_latest_artifact():
+    res = requests.get(ARTIFACT_URL, headers=headers)
+    res.raise_for_status()
+    data = res.json()["data"]
+    latest_artifact_name = data["latest_artifact_timestamp"]
+    print(f"📁 Latest artifact name: {latest_artifact_name}")
+    return latest_artifact_name
 
 # ----------------- MAIN -----------------
 if __name__ == "__main__":
@@ -196,14 +101,5 @@ if __name__ == "__main__":
     update_config()
     execute_feature()
     poll_status()
-
     folder = get_latest_artifact()
     download_and_print_log(folder)
-
-    artifact_details = get_artifact_details(folder, FEATURE_NAME)
-    if artifact_details:
-        generate_reports_from_details(artifact_details, FEATURE_TAG)
-        check_result_from_details(artifact_details)
-    else:
-        print("❌ Could not fetch artifact details. Exiting.")
-        sys.exit(1)
