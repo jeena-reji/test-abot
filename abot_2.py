@@ -10,7 +10,6 @@ STATUS_URL = f"{ABOT_URL}/abot/api/v5/execution_status"
 ARTIFACT_URL = f"{ABOT_URL}/abot/api/v5/latest_artifact_name"
 DETAIL_STATUS_URL = f"{ABOT_URL}/abot/api/v5/detail_execution_status"
 
-
 USERNAME = "ajeesh@cazelabs.com"
 PASSWORD = "ajeesh1234"
 FEATURE_TAG = "5gs-initial-registration-with-integrity-and-ciphering-sdcore-0.1.2"
@@ -46,37 +45,10 @@ def execute_feature():
     requests.post(EXECUTE_URL, headers=headers, json=payload).raise_for_status()
     print("▶️ Test started.")
 
-def poll_status():
-    print("⏳ Polling execution status...")
-    while True:
-        res = requests.get(STATUS_URL, headers=headers)
-        res.raise_for_status()
-        json_data = res.json()
-        exec_list = json_data.get("executing", {}).get("executing", [])
-        execution_status = json_data.get("executing", {}).get("execution_status", [])
-
-        if execution_status:
-            passed = sum(1 for step in execution_status if step["status"] == 0)
-            failed = sum(1 for step in execution_status if step["status"] != 0)
-            print(f"📊 Summary so far: Passed={passed}, Failed={failed}")
-
-        if exec_list and not exec_list[0].get("is_executing", True):
-            print("✅ Execution completed.")
-            if execution_status:
-                for step in execution_status:
-                    name = step["name"]
-                    status = "PASS" if step["status"] == 0 else "FAIL"
-                    print(f"Step: {name} → {status}")
-                print(f"🎯 Total Passed: {passed}, Total Failed: {failed}")
-            break
-        else:
-            print("🟡 Still running... waiting 10s")
-        time.sleep(10)
-
 def poll_both_statuses():
     print("⏳ Polling execution status...")
     while True:
-        # --- High-level execution_status ---
+        # --- High-level summary ---
         res = requests.get(STATUS_URL, headers=headers)
         res.raise_for_status()
         exec_data = res.json().get("executing", {})
@@ -84,10 +56,10 @@ def poll_both_statuses():
         execution_status = exec_data.get("execution_status", [])
 
         if execution_status:
-            # ABot’s old-style summary
-            passed = sum(1 for step in execution_status if step["status"] == 0)
-            failed = sum(1 for step in execution_status if step["status"] != 0)
-            print(f"📊 Summary so far (execution_status): Passed={passed}, Failed={failed}")
+            # ABot UI style: 1 = PASS, 0 = FAIL
+            passed = sum(1 for step in execution_status if step["status"] == 1)
+            failed = sum(1 for step in execution_status if step["status"] == 0)
+            print(f"📊 Summary so far: Passed={passed}, Failed={failed}")
 
         # --- Detailed per-step execution ---
         res_detail = requests.get(DETAIL_STATUS_URL, headers=headers)
@@ -98,13 +70,17 @@ def poll_both_statuses():
         total_failed = 0
         for feature, steps in detail_data.items():
             print(f"\nFeature: {feature}")
+            if not isinstance(steps, list):
+                continue
             for step in steps:
-                name = step["name"]
-                status = step["status"]  # "passed" or "failed"
+                if not isinstance(step, dict):
+                    continue
+                name = step.get("name", step.get("keyword", "Unknown Step"))
+                status = step.get("status", "unknown")  # "passed" or "failed"
                 print(f"Step: {name} → {status.upper()}")
                 if status.lower() == "passed":
                     total_passed += 1
-                else:
+                elif status.lower() == "failed":
                     total_failed += 1
 
         print(f"\n🎯 Total Passed: {total_passed}, Total Failed: {total_failed}")
@@ -116,7 +92,6 @@ def poll_both_statuses():
         else:
             print("🟡 Still running... waiting 10s")
             time.sleep(10)
-
 
 def download_and_print_log(folder):
     log_url = f"{ABOT_URL}/abot/api/v5/artifacts/logs"
@@ -147,7 +122,6 @@ if __name__ == "__main__":
     login()
     update_config()
     execute_feature()
-    poll_both_statuses()  # <-- polls both summary + detail
+    poll_both_statuses()
     folder = get_latest_artifact()
     download_and_print_log(folder)
-
