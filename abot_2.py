@@ -74,29 +74,35 @@ def poll_both_statuses():
 
         print("\n📋 Detailed Execution Status (per-step):")
         for feature, steps in detail_data.items():
-            print(f"\nFeature: {feature}")
-            for step in steps:
-                # Handle both dict and string step formats
-                if isinstance(step, dict):
-                    name = step.get("name") or step.get("keyword") or "Unknown Step"
-                    keyword = step.get("keyword") or ""
-                    status = step.get("status", "unknown")
-                    duration = step.get("duration", "N/A")
-                    timestamp = step.get("timestamp", "N/A")
+        print(f"\nFeature: {feature}")
+        for step in steps:
+            if isinstance(step, dict):
+                name = step.get("name") or step.get("keyword") or "Unknown Step"
+                keyword = step.get("keyword") or ""
+                status = step.get("status", "unknown")
+                duration = step.get("duration", "N/A")
+                timestamp = step.get("timestamp", "N/A")
+    
+                # Normalize status
+                if isinstance(status, int):
+                    status_str = "passed" if status == 1 else "failed"
                 else:
-                    # If step is just a string
-                    name = str(step)
-                    keyword = ""
-                    status = "unknown"
-                    duration = "N/A"
-                    timestamp = "N/A"
+                    status_str = str(status).lower()
+            else:
+                # Step is string
+                name = str(step)
+                keyword = ""
+                status_str = "unknown"
+                duration = "N/A"
+                timestamp = "N/A"
+    
+            print(f"{keyword} {name} → {status_str.upper()} (Duration: {duration}s, Timestamp: {timestamp})")
+    
+            if status_str == "passed":
+                total_passed += 1
+            elif status_str == "failed":
+                total_failed += 1
 
-                print(f"{keyword} {name} → {status.upper()} (Duration: {duration}s, Timestamp: {timestamp})")
-
-                if status.lower() == "passed":
-                    total_passed += 1
-                elif status.lower() == "failed":
-                    total_failed += 1
 
         print(f"\n🎯 Total Detailed Passed: {total_passed}, Total Failed: {total_failed}")
 
