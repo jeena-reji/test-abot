@@ -47,8 +47,9 @@ def execute_feature():
 
 def poll_both_statuses():
     print("⏳ Polling execution status...")
+
     while True:
-        # --- High-level summary ---
+        # --- 1️⃣ High-level execution_status (summary like ABot UI) ---
         res = requests.get(STATUS_URL, headers=headers)
         res.raise_for_status()
         exec_data = res.json().get("executing", {})
@@ -56,42 +57,49 @@ def poll_both_statuses():
         execution_status = exec_data.get("execution_status", [])
 
         if execution_status:
-            # ABot UI style: 1 = PASS, 0 = FAIL
-            passed = sum(1 for step in execution_status if step["status"] == 1)
-            failed = sum(1 for step in execution_status if step["status"] == 0)
-            print(f"📊 Summary so far: Passed={passed}, Failed={failed}")
+            passed = sum(1 for step in execution_status if step.get("status") == 1)
+            failed = sum(1 for step in execution_status if step.get("status") != 1)
+            print(f"\n📊 High-Level Summary (execution_status): Passed={passed}, Failed={failed}")
+            for step in execution_status:
+                status = "PASS" if step.get("status") == 1 else "FAIL"
+                print(f"Step: {step.get('name')} → {status}")
 
-        # --- Detailed per-step execution ---
+        # --- 2️⃣ Detailed per-step execution ---
         res_detail = requests.get(DETAIL_STATUS_URL, headers=headers)
         res_detail.raise_for_status()
         detail_data = res_detail.json().get("executing", {})
 
         total_passed = 0
         total_failed = 0
+
+        print("\n📋 Detailed Execution Status (per-step):")
         for feature, steps in detail_data.items():
             print(f"\nFeature: {feature}")
-            if not isinstance(steps, list):
-                continue
             for step in steps:
-                if not isinstance(step, dict):
-                    continue
-                name = step.get("name", step.get("keyword", "Unknown Step"))
-                status = step.get("status", "unknown")  # "passed" or "failed"
-                print(f"Step: {name} → {status.upper()}")
+                # Some fields may be missing; provide defaults
+                name = step.get("name") or step.get("keyword") or "Unknown Step"
+                keyword = step.get("keyword") or ""
+                status = step.get("status", "unknown")
+                duration = step.get("duration", "N/A")
+                timestamp = step.get("timestamp", "N/A")
+
+                print(f"{keyword} {name} → {status.upper()} (Duration: {duration}s, Timestamp: {timestamp})")
+
                 if status.lower() == "passed":
                     total_passed += 1
                 elif status.lower() == "failed":
                     total_failed += 1
 
-        print(f"\n🎯 Total Passed: {total_passed}, Total Failed: {total_failed}")
+        print(f"\n🎯 Total Detailed Passed: {total_passed}, Total Failed: {total_failed}")
 
         # Stop polling if main execution finished
         if exec_list and not exec_list[0].get("is_executing", True):
-            print("✅ Execution completed.")
+            print("\n✅ Execution completed.")
             break
         else:
             print("🟡 Still running... waiting 10s")
             time.sleep(10)
+
 
 def download_and_print_log(folder):
     log_url = f"{ABOT_URL}/abot/api/v5/artifacts/logs"
