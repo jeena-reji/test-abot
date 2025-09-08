@@ -115,7 +115,7 @@ def get_artifact_details(folder):
     params = {
         "foldername": safe_folder,
         "featurename": "5GS_Initial_Registration_with_Integrity_and_Ciphering.feature",
-        "featureId": "5GS_Initial_Registration_with_Integrity_and_Ciphering.feature"
+        "featureId": "5gs-initial-registration-with-integrity-and-ciphering-sdcore-0.1.2"
     }
     
     try:
