@@ -49,7 +49,7 @@ def poll_both_statuses():
     print("⏳ Polling execution status...")
 
     while True:
-        # --- 1️⃣ High-level execution_status (summary like ABot UI) ---
+        # --- High-level execution_status ---
         res = requests.get(STATUS_URL, headers=headers)
         res.raise_for_status()
         exec_data = res.json().get("executing", {})
@@ -64,7 +64,7 @@ def poll_both_statuses():
                 status = "PASS" if step.get("status") == 1 else "FAIL"
                 print(f"Step: {step.get('name')} → {status}")
 
-        # --- 2️⃣ Detailed per-step execution ---
+        # --- Detailed per-step execution ---
         res_detail = requests.get(DETAIL_STATUS_URL, headers=headers)
         res_detail.raise_for_status()
         detail_data = res_detail.json().get("executing", {})
@@ -74,35 +74,34 @@ def poll_both_statuses():
 
         print("\n📋 Detailed Execution Status (per-step):")
         for feature, steps in detail_data.items():
-        print(f"\nFeature: {feature}")
-        for step in steps:
-            if isinstance(step, dict):
-                name = step.get("name") or step.get("keyword") or "Unknown Step"
-                keyword = step.get("keyword") or ""
-                status = step.get("status", "unknown")
-                duration = step.get("duration", "N/A")
-                timestamp = step.get("timestamp", "N/A")
-    
-                # Normalize status
-                if isinstance(status, int):
-                    status_str = "passed" if status == 1 else "failed"
-                else:
-                    status_str = str(status).lower()
-            else:
-                # Step is string
-                name = str(step)
-                keyword = ""
-                status_str = "unknown"
-                duration = "N/A"
-                timestamp = "N/A"
-    
-            print(f"{keyword} {name} → {status_str.upper()} (Duration: {duration}s, Timestamp: {timestamp})")
-    
-            if status_str == "passed":
-                total_passed += 1
-            elif status_str == "failed":
-                total_failed += 1
+            print(f"\nFeature: {feature}")
+            for step in steps:
+                if isinstance(step, dict):
+                    name = step.get("name") or step.get("keyword") or "Unknown Step"
+                    keyword = step.get("keyword") or ""
+                    status = step.get("status", "unknown")
+                    duration = step.get("duration", "N/A")
+                    timestamp = step.get("timestamp", "N/A")
 
+                    # Normalize status
+                    if isinstance(status, int):
+                        status_str = "passed" if status == 1 else "failed"
+                    else:
+                        status_str = str(status).lower()
+                else:
+                    # Step is a string
+                    name = str(step)
+                    keyword = ""
+                    status_str = "unknown"
+                    duration = "N/A"
+                    timestamp = "N/A"
+
+                print(f"{keyword} {name} → {status_str.upper()} (Duration: {duration}s, Timestamp: {timestamp})")
+
+                if status_str == "passed":
+                    total_passed += 1
+                elif status_str == "failed":
+                    total_failed += 1
 
         print(f"\n🎯 Total Detailed Passed: {total_passed}, Total Failed: {total_failed}")
 
@@ -113,8 +112,6 @@ def poll_both_statuses():
         else:
             print("🟡 Still running... waiting 10s")
             time.sleep(10)
-
-
 
 def download_and_print_log(folder):
     log_url = f"{ABOT_URL}/abot/api/v5/artifacts/logs"
