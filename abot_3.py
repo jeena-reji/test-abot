@@ -49,7 +49,7 @@ def poll_both_statuses():
     print("⏳ Polling execution status...")
 
     while True:
-        # --- High-level execution_status ---
+        # --- 1️⃣ High-level execution_status ---
         res = requests.get(STATUS_URL, headers=headers)
         res.raise_for_status()
         exec_data = res.json().get("executing", {})
@@ -64,7 +64,7 @@ def poll_both_statuses():
                 status = "PASS" if step.get("status") == 1 else "FAIL"
                 print(f"Step: {step.get('name')} → {status}")
 
-        # --- Detailed per-step execution ---
+        # --- 2️⃣ Detailed per-step execution ---
         res_detail = requests.get(DETAIL_STATUS_URL, headers=headers)
         res_detail.raise_for_status()
         detail_data = res_detail.json().get("executing", {})
@@ -76,30 +76,26 @@ def poll_both_statuses():
         for feature, steps in detail_data.items():
             print(f"\nFeature: {feature}")
             for step in steps:
+                # Expecting step as dict as per Swagger doc
                 if isinstance(step, dict):
-                    name = step.get("name") or step.get("keyword") or "Unknown Step"
-                    keyword = step.get("keyword") or ""
-                    status = step.get("status", "unknown")
+                    name = step.get("name", "Unknown Step")
+                    keyword = step.get("keyword", "")
+                    status = str(step.get("status", "unknown")).lower()
                     duration = step.get("duration", "N/A")
                     timestamp = step.get("timestamp", "N/A")
-
-                    # Normalize status for counting
-                    if isinstance(status, int):
-                        status_str = "passed" if status == 1 else "failed"
-                    else:
-                        status_str = str(status).lower()
                 else:
+                    # fallback in case API returns string
                     name = str(step)
                     keyword = ""
-                    status_str = "unknown"
+                    status = "unknown"
                     duration = "N/A"
                     timestamp = "N/A"
 
-                print(f"{keyword} {name} → {status_str.upper()} (Duration: {duration}s, Timestamp: {timestamp})")
+                print(f"{keyword} {name} → {status.upper()} (Duration: {duration}s, Timestamp: {timestamp})")
 
-                if status_str == "passed":
+                if status == "passed":
                     total_passed += 1
-                elif status_str == "failed":
+                elif status == "failed":
                     total_failed += 1
 
         print(f"\n🎯 Total Detailed Passed: {total_passed}, Total Failed: {total_failed}")
@@ -114,7 +110,7 @@ def poll_both_statuses():
 
 def download_and_print_log(folder):
     log_url = f"{ABOT_URL}/abot/api/v5/artifacts/logs"
-    # Replace ':' and '@' for safe URL access
+    # Replace unsafe characters for URL
     safe_folder = quote(folder.replace(":", "_").replace("@", "_"))
     params = {"foldername": safe_folder}
     print("📥 Downloading ABot execution log...")
@@ -133,7 +129,7 @@ def get_latest_artifact():
     res = requests.get(ARTIFACT_URL, headers=headers)
     res.raise_for_status()
     data = res.json()["data"]
-    latest_artifact_name = data["latest_artifact_timestamp"]
+    latest_artifact_name = data.get("latest_artifact_timestamp", "unknown_artifact")
     print(f"📁 Latest artifact name: {latest_artifact_name}")
     return latest_artifact_name
 
