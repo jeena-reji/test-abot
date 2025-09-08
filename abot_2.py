@@ -1,4 +1,4 @@
-import requests, time, sys, json, os
+import requests, time, sys, json, os, urllib.parse
 from datetime import datetime
 
 # ----------------- CONFIG -----------------
@@ -82,8 +82,11 @@ def get_latest_artifact():
     return latest_artifact_name
 
 def download_and_print_log(folder):
+    """Download ABot execution log using URL-encoded folder name."""
     log_url = f"{ABOT_URL}/abot/api/v5/artifacts/logs"
-    params = {"foldername": folder}
+    encoded_folder = urllib.parse.quote(folder, safe='')  # Encode special characters
+    params = {"foldername": encoded_folder}
+
     print("📥 Downloading ABot execution log...")
     res = requests.get(log_url, headers=headers, params=params)
     res.raise_for_status()
