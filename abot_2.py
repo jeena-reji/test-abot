@@ -8,6 +8,8 @@ CONFIG_URL = f"{ABOT_URL}/abot/api/v5/update_config_properties"
 EXECUTE_URL = f"{ABOT_URL}/abot/api/v5/feature_files/execute"
 STATUS_URL = f"{ABOT_URL}/abot/api/v5/execution_status"
 ARTIFACT_URL = f"{ABOT_URL}/abot/api/v5/latest_artifact_name"
+DETAIL_STATUS_URL = f"{ABOT_URL}/abot/api/v5/detail_execution_status"
+
 
 USERNAME = "ajeesh@cazelabs.com"
 PASSWORD = "ajeesh1234"
@@ -71,6 +73,51 @@ def poll_status():
             print("🟡 Still running... waiting 10s")
         time.sleep(10)
 
+def poll_both_statuses():
+    print("⏳ Polling execution status...")
+    while True:
+        # --- High-level execution_status ---
+        res = requests.get(STATUS_URL, headers=headers)
+        res.raise_for_status()
+        exec_data = res.json().get("executing", {})
+        exec_list = exec_data.get("executing", [])
+        execution_status = exec_data.get("execution_status", [])
+
+        if execution_status:
+            # ABot’s old-style summary
+            passed = sum(1 for step in execution_status if step["status"] == 0)
+            failed = sum(1 for step in execution_status if step["status"] != 0)
+            print(f"📊 Summary so far (execution_status): Passed={passed}, Failed={failed}")
+
+        # --- Detailed per-step execution ---
+        res_detail = requests.get(DETAIL_STATUS_URL, headers=headers)
+        res_detail.raise_for_status()
+        detail_data = res_detail.json().get("executing", {})
+
+        total_passed = 0
+        total_failed = 0
+        for feature, steps in detail_data.items():
+            print(f"\nFeature: {feature}")
+            for step in steps:
+                name = step["name"]
+                status = step["status"]  # "passed" or "failed"
+                print(f"Step: {name} → {status.upper()}")
+                if status.lower() == "passed":
+                    total_passed += 1
+                else:
+                    total_failed += 1
+
+        print(f"\n🎯 Total Passed: {total_passed}, Total Failed: {total_failed}")
+
+        # Stop polling if main execution finished
+        if exec_list and not exec_list[0].get("is_executing", True):
+            print("✅ Execution completed.")
+            break
+        else:
+            print("🟡 Still running... waiting 10s")
+            time.sleep(10)
+
+
 def download_and_print_log(folder):
     log_url = f"{ABOT_URL}/abot/api/v5/artifacts/logs"
     safe_folder = quote(folder, safe='')
@@ -100,6 +147,7 @@ if __name__ == "__main__":
     login()
     update_config()
     execute_feature()
-    poll_status()
+    poll_both_statuses()  # <-- polls both summary + detail
     folder = get_latest_artifact()
     download_and_print_log(folder)
+
