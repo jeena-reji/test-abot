@@ -82,13 +82,20 @@ def get_latest_artifact():
     return latest_artifact_name
 
 def download_and_print_log(folder):
-    """Download ABot execution log using URL-encoded folder name."""
+    """Download ABot execution log using properly URL-encoded folder name."""
     log_url = f"{ABOT_URL}/abot/api/v5/artifacts/logs"
-    encoded_folder = urllib.parse.quote(folder, safe='')  # Encode special characters
-    params = {"foldername": encoded_folder}
+    
+    # Only encode @ and : (common special characters in folder name)
+    safe_folder = folder.replace(":", "%3A").replace("@", "%40")
+    params = {"foldername": safe_folder}
 
     print("📥 Downloading ABot execution log...")
     res = requests.get(log_url, headers=headers, params=params)
+    
+    if res.status_code == 404:
+        print(f"⚠️ Log not found for folder: {folder}")
+        return
+
     res.raise_for_status()
 
     log_text = res.text
@@ -99,10 +106,17 @@ def download_and_print_log(folder):
     with open("abot_log.log", "w") as f:
         f.write(log_text)
 
+
 def get_summary(folder):
     print("📊 Fetching execution summary...")
-    params = {"foldername": folder, "page": 1, "limit": 9998}
+    safe_folder = folder.replace(":", "%3A").replace("@", "%40")
+    params = {"foldername": safe_folder, "page": 1, "limit": 9998}
     res = requests.get(SUMMARY_URL, headers=headers, params=params)
+    
+    if res.status_code == 404:
+        print(f"⚠️ Summary not found for folder: {folder}")
+        return {}
+
     res.raise_for_status()
     summary = res.json()
     os.makedirs("results", exist_ok=True)
