@@ -12,7 +12,6 @@ CONFIG_URL = f"{ABOT_URL}/abot/api/v5/update_config_properties"
 EXECUTE_URL = f"{ABOT_URL}/abot/api/v5/feature_files/execute"
 LATEST_ARTIFACT_URL = f"{ABOT_URL}/abot/api/v5/latest_artifact_name"
 EXEC_FEATURE_DETAILS_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureDetails"
-EXEC_FAILURE_DETAILS_URL = f"{ABOT_URL}/abot/api/v5/artifacts/execFailureDetails"
 
 # Credentials and feature tag
 USERNAME = "ajeesh@cazelabs.com"
@@ -71,39 +70,13 @@ def fetch_latest_artifact(tag):
     print("❌ Could not fetch artifact for tag")
     return None
 
-def fetch_failed_steps(folder):
-    print("Fetching failed steps...")
-    url = f"{EXEC_FAILURE_DETAILS_URL}?artifactId={folder}"
-    
-    for attempt in range(20):
-        try:
-            res = requests.get(url, headers=headers, timeout=30)
-            res.raise_for_status()
-            data = res.json()
-            failures = data.get("failed_steps", [])
-            if failures:
-                print(f"\n❌ Total Failed Steps: {len(failures)}")
-                for f in failures:
-                    feature = f.get('feature', 'UNKNOWN')
-                    scenario = f.get('scenario', 'UNKNOWN')
-                    step = f.get('step', 'UNKNOWN')
-                    status = f.get('status', 'FAILED')
-                    print(f"[{status}] Feature: {feature}, Scenario: {scenario}, Step: {step}")
-                return
-            else:
-                print(f"⚠ Attempt {attempt+1}/20: No failed steps yet, retrying...")
-                time.sleep(10)
-        except requests.HTTPError as e:
-            print(f"❌ HTTP error: {e}, retrying...")
-            time.sleep(10)
-    print("✔ No failed steps. All scenarios passed!")
-
 def fetch_detailed_report(folder):
-    """Fetch detailed per-feature results using execFeatureDetails"""
-    encoded_folder = urllib.parse.quote(folder, safe="")
+    """Fetch all feature execution details"""
+    # Properly encode folder and feature details
+    encoded_folder = urllib.parse.quote(folder, safe=":-_.")  # keep colon, dash, dot
     feature_file = f"{FEATURE_TAG}.feature"
-    encoded_feature_file = urllib.parse.quote(feature_file, safe="")
-    encoded_feature_id = urllib.parse.quote(FEATURE_TAG, safe="")
+    encoded_feature_file = urllib.parse.quote(feature_file, safe="-_.")
+    encoded_feature_id = urllib.parse.quote(FEATURE_TAG, safe="-_.")
 
     url = f"{EXEC_FEATURE_DETAILS_URL}?foldername={encoded_folder}&featurename={encoded_feature_file}&featureId={encoded_feature_id}"
 
@@ -118,9 +91,11 @@ def fetch_detailed_report(folder):
             data = res.json()
             features = data.get("features", [])
             if not features:
-                print("⚠ No feature data found")
-                return False
+                print("⚠ No feature data found yet, retrying...")
+                time.sleep(10)
+                continue
 
+            # Print all feature, scenario, step details
             for feature in features:
                 feature_name = feature.get("name", "UNKNOWN")
                 print(f"\n📌 Feature: {feature_name}")
@@ -151,9 +126,7 @@ def main():
             print("❌ Could not retrieve artifact, aborting.")
             return
 
-        fetch_failed_steps(artifact_id)          # ✅ failure reasons
-        success = fetch_detailed_report(artifact_id)  # ✅ detailed step-level logs
-
+        success = fetch_detailed_report(artifact_id)  # ✅ fetch all details
         if not success:
             print("⚠ No detailed report available.")
 
