@@ -26,24 +26,18 @@ def login():
     headers["Authorization"] = f"Bearer {token}"
     print("✅ Login successful.")
     return token
-
 def update_config():
-    print("⚙️ Updating config...")
-    payload = {
-        "uncomment": [
-            "ABOT.SUTVARS=file:abot-emulated/sut-vars/default.properties"
-        ],
-        "comment": [
-            "ABOT.SUTVARS=file:abot-emulated/sut-vars/default5g.properties",
-            "ABOT.SUTVARS=file:abot-emulated/sut-vars/default4g5g.properties",
-            "ABOT.SUTVARS.ORAN=file:abot-emulated/sut-vars/default5g-oran.properties"
-        ],
-        "update": {}
-    }
-    res = requests.post(CONFIG_URL, headers=headers, json=payload, params={"filename": CONFIG_FILE})
-    res.raise_for_status()
-    print("✅ Config updated.")
+    print("=== Configuration Phase ===")
+    payload1 = {"update": {"ABOT.SUTVARS.ORAN": "", "ABOT.SUTVARS": "file:IOSMCN/sut-vars/default5G.properties"}}
+    params1 = {"filename": "/etc/rebaca-test-suite/config/ajeesh_cazelabs_com/ABotConfig.properties"}
+    requests.post(CONFIG_URL, headers=headers, json=payload1, params=params1, timeout=30).raise_for_status()
+    print("✔ Updated sut-vars → ABotConfig.properties")
 
+    payload2 = {"update": {"ABOT.TESTBED": "file:IOSMCN/testbeds/testbed-5G-IOSMCN.properties", "LOAD_SWITCH": "off"}}
+    params2 = {"filename": "/etc/rebaca-test-suite/config/ajeesh_cazelabs_com/ABot_System_Configs/ABotConfig_Primary_Configuration.properties"}
+    requests.post(CONFIG_URL, headers=headers, json=payload2, params=params2, timeout=30).raise_for_status()
+    print("✔ Updated testbed → ABot_Primary_Configuration.properties")
+    time.sleep(5)
 def execute_feature():
     print(f"🚀 Executing feature tag: {FEATURE_TAG}")
     payload = {"params": FEATURE_TAG}
