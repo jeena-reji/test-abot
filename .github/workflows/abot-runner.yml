@@ -1,57 +1,39 @@
-name: ABot List Available Tags
+name: ABot Test Execution
 
 on:
   workflow_dispatch:
+    inputs:
+      feature_tag:
+        description: "Feature tag to execute"
+        required: true
+        default: "5gs-initial-registration-sdcore-0.0.10"
 
 jobs:
-  list-abot-tags:
-    runs-on: [self-hosted]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+  run-abot:
+    runs-on: ubuntu-latest
 
-      - name: 🛠 Set up Python
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install requests
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
 
-      - name: Run ABot tags
-        run: python abot_3.py 
+      - name: Run ABot Test
+        run: |
+          echo "=== ABot Test Automation Started ==="
+          python abot_4.py | tee abot_log.log
+          echo "=== ABot Test Automation Finished ==="
 
-      - name: Read artifact folder path
-        if: always()
-        id: get-artifact
-        run: echo "artifact=$(cat artifact_path.txt)" >> $GITHUB_OUTPUT
-
-      - name: Upload ABot Execution Artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: abot-execution
-          path: ${{ steps.get-artifact.outputs.artifact }}
-
-      - name: Upload ABot Summary
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: abot-summary
-          path: execution_summary.json
-
-      - name: Upload ABot Logs
-        if: always()
+      - name: Upload ABot Log
         uses: actions/upload-artifact@v4
         with:
           name: abot-log
           path: abot_log.log
-
-      - name: Fail job if tests failed
-        if: always()
-        run: |
-          if [ -f test_failed.txt ]; then
-            echo "Tests failed"
-            cat test_failed.txt
-            exit 1
-          fi
