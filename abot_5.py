@@ -59,6 +59,7 @@ def wait_for_new_execution(feature_tag):
         res = requests.get(STATUS_URL, headers=headers, timeout=30)
         res.raise_for_status()
         data = res.json()
+        print("DEBUG:", json.dumps(data, indent=2))
 
         # If API returns a list
         if isinstance(data, list):
