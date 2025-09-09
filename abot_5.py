@@ -71,13 +71,22 @@ def wait_for_execution_start(feature_tag, timeout=120):
             res = requests.get(STATUS_URL, headers=headers, timeout=10)
             res.raise_for_status()
             all_exec = res.json().get("executing", {})
+
+            # ensure we have a dictionary
+            if not isinstance(all_exec, dict):
+                all_exec = {}
             
-            # Check if any feature matches our tag
             for exec_id, exec_info in all_exec.items():
+                # make sure exec_info is a dict
+                if not isinstance(exec_info, dict):
+                    continue
+            
                 features = exec_info.get("feature_files", [])
-                if any(feature_tag in f for f in features):
+                if any(FEATURE_TAG in f for f in features):
                     print(f"✅ Execution started: {exec_id}")
-                    return exec_id  # Return the actual execution ID found
+                    return exec_id
+
+           
         except requests.exceptions.RequestException:
             pass
 
@@ -97,16 +106,29 @@ def poll_current_status(exec_id):
     while True:
         try:
             # Fetch detailed execution status
-            res_detail = requests.get(DETAIL_STATUS_URL, headers=headers, params={"execution": exec_id}, timeout=30)
-            res_detail.raise_for_status()
+            res_detail = requests.get(DETAIL_STATUS_URL, headers=headers, timeout=30)
             all_detail_data = res_detail.json().get("executing", {})
             
-            # Only use the data for our current execution_id
-            detail_data = all_detail_data.get(exec_id)
+            # Ensure dictionary
+            if not isinstance(all_detail_data, dict):
+                all_detail_data = {}
+            
+            # find execution that matches your feature
+            detail_data = None
+            for exec_id, exec_info in all_detail_data.items():
+                if isinstance(exec_info, dict):
+                    for feature_name in exec_info.keys():
+                        if FEATURE_TAG in feature_name:
+                            detail_data = exec_info
+                            break
+                if detail_data:
+                    break
+            
             if not detail_data:
-                print("🟡 Execution not started yet for this execution ID...", flush=True)
+                print("🟡 Execution not started yet for this execution ID...")
                 time.sleep(10)
                 continue
+
 
 
             # Track running/completed steps
