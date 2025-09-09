@@ -180,79 +180,100 @@ def download_and_print_log(folder):
         return  # silently ignore
 
 
-def fetch_artifact_summary(folder):
+def fetch_artifact_summary(folder, timeout=60):
+    """
+    Fetch the feature summary from ABot artifact.
+    Waits until steps.total > 0 or timeout (in seconds) is reached.
+    """
     print(f"\n📋 Fetching feature summary for artifact: {folder}\n")
     page = 1
     limit = 9999
     params = {"foldername": folder, "page": page, "limit": limit}
 
-    try:
-        res = requests.get(f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary", headers=headers, params=params, timeout=30)
-        res.raise_for_status()
-        data = res.json()
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            res = requests.get(f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary",
+                               headers=headers, params=params, timeout=30)
+            res.raise_for_status()
+            data = res.json()
 
-        if data.get("status", "").lower() != "ok":
-            print(f"⚠️ Failed to fetch feature summary: {data.get('message')}")
-            return
-
-        summary_result = data.get("feature_summary", {}).get("result", {})
-
-        if isinstance(summary_result, dict):
-            summary_list = [summary_result]
-        elif isinstance(summary_result, list):
-            summary_list = summary_result
-        else:
-            return
-
-        for feature_item in summary_list:
-            feature_data_list = feature_item.get("data", [])
-            if isinstance(feature_data_list, dict):
-                feature_data_list = [feature_data_list]
-            elif not isinstance(feature_data_list, list):
+            if data.get("status", "").lower() != "ok":
+                print(f"⚠️ Failed to fetch feature summary: {data.get('message')}")
+                time.sleep(2)
                 continue
 
-            for feature_data in feature_data_list:
-                feature_name = feature_data.get("featureName", "Unknown Feature")
-                steps = feature_data.get("steps", {})
+            summary_result = data.get("feature_summary", {}).get("result", {})
 
-                # safe extraction with default values
-                steps_info = steps.get("steps", {})
-                scenario_info = steps.get("scenario", {})
-                features_info = steps.get("features", {})
-                load_info = steps.get("load", {})
+            if isinstance(summary_result, dict):
+                summary_list = [summary_result]
+            elif isinstance(summary_result, list):
+                summary_list = summary_result
+            else:
+                time.sleep(2)
+                continue
 
-                output = {
-                    "Feature": feature_name,
+            all_zero = True
+            for feature_item in summary_list:
+                feature_data_list = feature_item.get("data", [])
+                if isinstance(feature_data_list, dict):
+                    feature_data_list = [feature_data_list]
+                elif not isinstance(feature_data_list, list):
+                    continue
+
+                for feature_data in feature_data_list:
+                    steps = feature_data.get("steps", {}).get("steps", {})
+                    if steps.get("total", 0) > 0:
+                        all_zero = False
+
+            if not all_zero:
+                break  # exit the wait loop
+            else:
+                time.sleep(2)
+        except requests.exceptions.RequestException:
+            time.sleep(2)
+
+    # Now print the summary
+    for feature_item in summary_list:
+        feature_data_list = feature_item.get("data", [])
+        if isinstance(feature_data_list, dict):
+            feature_data_list = [feature_data_list]
+
+        for feature_data in feature_data_list:
+            feature_name = feature_data.get("featureName", "Unknown Feature")
+            steps_info = feature_data.get("steps", {}).get("steps", {})
+            scenario_info = feature_data.get("steps", {}).get("scenario", {})
+            features_info = feature_data.get("steps", {}).get("features", {})
+            load_info = feature_data.get("steps", {}).get("load", {})
+
+            output = {
+                "Feature": feature_name,
+                "steps": {
                     "steps": {
-                        "steps": {
-                            "total": steps_info.get("total", 0),
-                            "passed": steps_info.get("passed", 0),
-                            "failed": steps_info.get("failed", 0),
-                            "skipped": steps_info.get("skipped", 0)
-                        },
-                        "scenario": {
-                            "total": scenario_info.get("total", 0),
-                            "passed": scenario_info.get("passed", 0),
-                            "failed": scenario_info.get("failed", 0)
-                        },
-                        "features": {
-                            "status": features_info.get("status", "N/A"),
-                            "duration": features_info.get("duration", 0)
-                        },
-                        "load": {
-                            "UEs": load_info.get("UEs", 0),
-                            "Concurrency": load_info.get("Concurrency", 0)
-                        }
+                        "total": steps_info.get("total", 0),
+                        "passed": steps_info.get("passed", 0),
+                        "failed": steps_info.get("failed", 0),
+                        "skipped": steps_info.get("skipped", 0)
+                    },
+                    "scenario": {
+                        "total": scenario_info.get("total", 0),
+                        "passed": scenario_info.get("passed", 0),
+                        "failed": scenario_info.get("failed", 0)
+                    },
+                    "features": {
+                        "status": features_info.get("status", "N/A"),
+                        "duration": features_info.get("duration", 0)
+                    },
+                    "load": {
+                        "UEs": load_info.get("UEs", 0),
+                        "Concurrency": load_info.get("Concurrency", 0)
                     }
                 }
+            }
 
-                print(json.dumps(output, indent=2))
-
-    except requests.exceptions.RequestException as e:
-        print(f"⚠️ Error fetching feature summary: {e}")
+            print(json.dumps(output, indent=2))
 
 
-# --- In your main __name__ block, call this after downloading the log ---
 if __name__ == "__main__":
     os.system('cls' if os.name == 'nt' else 'clear')
 
@@ -262,13 +283,13 @@ if __name__ == "__main__":
     real_exec_id = wait_for_new_execution(exec_marker)
     poll_current_status(real_exec_id)
 
-    # Correctly aligned
     folder = wait_for_latest_artifact_by_tag(FEATURE_TAG, timeout=300)
     if folder:
         download_and_print_log(folder)
-        fetch_artifact_summary(folder)
+        fetch_artifact_summary(folder, timeout=60)
 
     print("=== ABot Test Automation Finished ===")
+
 
 
 
