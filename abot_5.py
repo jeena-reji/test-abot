@@ -45,21 +45,12 @@ def execute_feature():
     payload = {"params": FEATURE_TAG}
     res = requests.post(EXECUTE_URL, headers=headers, json=payload)
     res.raise_for_status()
+    print("▶️ Feature execution requested.\n")
+    return True  # execution ID not returned, will fetch from /execution_status
 
-    exec_info = res.json().get("data", {})
-    execution_id = exec_info.get("executionId")
-    if not execution_id:
-        timestamp = exec_info.get("timestamp")
-        execution_id = f"{FEATURE_TAG}-{timestamp}" if timestamp else f"{FEATURE_TAG}-{int(time.time())}"
-
-    print(f"▶️ Test started. Execution ID = {execution_id}\n")
-    return execution_id
-
-def wait_for_execution_start(exec_id, timeout=120):
-    """Poll /execution_status until our execution_id appears in running executions"""
-    print(f"⏳ Waiting for execution '{exec_id}' to start...")
+def find_execution_id(feature_tag, timeout=120):
+    print(f"⏳ Waiting for execution of feature '{feature_tag}' to start...")
     start_time = time.time()
-
     while time.time() - start_time < timeout:
         try:
             res = requests.get(STATUS_URL, headers=headers, timeout=10)
@@ -68,9 +59,12 @@ def wait_for_execution_start(exec_id, timeout=120):
             if not isinstance(all_exec, dict):
                 all_exec = {}
 
-            if exec_id in all_exec:
-                print(f"✅ Execution registered: {exec_id}")
-                return True
+            for exec_id, exec_info in all_exec.items():
+                if isinstance(exec_info, dict):
+                    feature_files = exec_info.get("feature_files", [])
+                    if any(feature_tag in f for f in feature_files):
+                        print(f"✅ Execution started: {exec_id}")
+                        return exec_id
 
         except requests.exceptions.RequestException:
             pass
@@ -78,8 +72,8 @@ def wait_for_execution_start(exec_id, timeout=120):
         print("🟡 Execution not started yet... retrying in 5s")
         time.sleep(5)
 
-    print(f"⚠️ Timeout: execution '{exec_id}' did not start")
-    return False
+    print(f"⚠️ Timeout: execution of feature '{feature_tag}' did not start.")
+    return None
 
 def poll_current_status(exec_id):
     print("⏳ Polling execution status...\n")
@@ -92,7 +86,6 @@ def poll_current_status(exec_id):
             if not isinstance(all_detail_data, dict):
                 all_detail_data = {}
 
-            # Find the execution data
             detail_data = all_detail_data.get(exec_id)
             if not detail_data:
                 print("🟡 Execution not started yet for this execution ID...")
@@ -158,15 +151,14 @@ if __name__ == "__main__":
     update_config()
 
     # Start execution
-    exec_id = execute_feature()
+    execute_feature()
 
-    # Wait for execution to register
-    if wait_for_execution_start(exec_id):
+    # Find the execution ID
+    exec_id = find_execution_id(FEATURE_TAG)
+    if exec_id:
         poll_current_status(exec_id)
+        folder = get_artifact_by_execution(exec_id)
+        if folder:
+            download_and_print_log(folder)
     else:
-        print("❌ Could not find the execution.")
-
-    # Download logs
-    folder = get_artifact_by_execution(exec_id)
-    if folder:
-        download_and_print_log(folder)
+        print("❌ Could not find execution for the given feature tag.")
