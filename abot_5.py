@@ -70,11 +70,12 @@ def poll_both_statuses(exec_id):
         # Filter for the current execution ID
         current_exec = {k: v for k, v in exec_data.items() if k == exec_id}
         if not current_exec:
-             if wait_count % 3 == 0:
-                    print(f"⚠️ Current execution {exec_id} not found yet, waiting...")
-              wait_count += 1
-              time.sleep(5)
-              continue
+            if wait_count % 3 == 0:
+                print(f"⚠️ Current execution {exec_id} not found yet, waiting...")
+            wait_count += 1
+            time.sleep(5)
+            continue
+
 
         execution_status = current_exec[exec_id].get("execution_status", [])
         if execution_status:
