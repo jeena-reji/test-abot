@@ -64,7 +64,8 @@ def wait_for_new_execution(execution_id):
     print(f"⏳ Waiting for ABot to switch to execution {execution_id}...")
     last_seen = None
     while True:
-        res = requests.get(EXEC_STATUS_URL, headers=headers)
+        res = requests.get(STATUS_URL, headers=headers)
+
         data = res.json()
 
         # Grab some unique marker from the response
