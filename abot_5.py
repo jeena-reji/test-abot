@@ -45,14 +45,13 @@ def update_config():
 def execute_feature():
     print(f"🚀 Executing feature tag: {FEATURE_TAG}")
     
-    # Generate a unique execution ID using timestamp
-    execution_id = f"{FEATURE_TAG}-{int(time.time())}"
-    
-    payload = {"params": FEATURE_TAG, "executionId": execution_id}
-    
+    payload = {"params": FEATURE_TAG}
     res = requests.post(EXECUTE_URL, headers=headers, json=payload)
     res.raise_for_status()
     
+    # Get the actual execution ID from ABot API response
+    exec_info = res.json().get("data", {})
+    execution_id = exec_info.get("executionId")  # ← THIS IS THE CORRECT ONE
     print(f"▶️ Test started. Execution ID = {execution_id}\n")
     return execution_id
 
