@@ -54,26 +54,29 @@ def execute_feature():
 
 
 def poll_current_status(exec_id):
-    """
-    Poll only current execution, minimal output during polling.
-    Print final summary cleanly.
-    """
     print("⏳ Polling execution status...\n")
     while True:
-        # High-level execution status
-        res = requests.get(STATUS_URL, headers=headers, params={"execution": exec_id})
-        res.raise_for_status()
-        exec_data = res.json().get("executing", {})
+        try:
+            # High-level execution status
+            res = requests.get(STATUS_URL, headers=headers, params={"execution": exec_id}, timeout=30)
+            res.raise_for_status()
+            data = res.json().get("executing") or res.json().get("execution_status") or []
+            
+            if not data:
+                # Assume execution finished
+                break
 
-        # Stop polling if finished
-        if not exec_data.get("executing", []):
-            break
+            # Print minimal live summary
+            passed = sum(1 for step in data if step.get("status") == 1)
+            failed = sum(1 for step in data if step.get("status") != 1)
+            print(f"🟡 Running... Passed={passed}, Failed={failed}")
+            time.sleep(10)
+        except requests.exceptions.RequestException as e:
+            print(f"⚠️ Polling error: {e}, retrying in 10s")
+            time.sleep(10)
 
-        print("🟡 Still running... waiting 10s")
-        time.sleep(10)
+    print("\n✅ Execution completed.")
 
-    # Once done, fetch final summary
-    print("\n✅ Execution completed. Fetching final summary...\n")
 
     # --- High-Level Summary ---
     res = requests.get(STATUS_URL, headers=headers, params={"execution": exec_id})
