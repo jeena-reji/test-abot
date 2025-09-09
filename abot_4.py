@@ -1,4 +1,4 @@
-import requests, time
+import requests, time ,os
 from urllib.parse import quote
 
 # ----------------- CONFIG -----------------
@@ -13,7 +13,7 @@ LOG_URL = f"{ABOT_URL}/abot/api/v5/artifacts/logs"
 
 USERNAME = "ajeesh@cazelabs.com"
 PASSWORD = "ajeesh1234"
-FEATURE_TAG = "5gs-initial-registration-sdcore-0.0.10"
+FEATURE_TAG = os.getenv("FEATURE_TAG", "5gs-initial-registration-sdcore-0.0.10")
 
 headers = {"Content-Type": "application/json"}
 
