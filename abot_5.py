@@ -60,28 +60,28 @@ def execute_feature():
     return execution_id
 
 
+
 def wait_for_new_execution(execution_id):
     print(f"⏳ Waiting for ABot to switch to execution {execution_id}...")
     last_seen = None
     while True:
-        res = requests.get(STATUS_URL, headers=headers)
-
+        res = requests.get(STATUS_URL, headers=headers, timeout=30)
+        res.raise_for_status()
         data = res.json()
 
-        # Grab some unique marker from the response
-        current_name = None
+        current_exec = None
         try:
-            current_name = data["executing"]["execution_status"][0]["name"]
+            current_exec = data["executing"].get("executionId")
         except Exception:
             pass
 
-        if current_name and FEATURE_TAG in current_name:
-            print(f"✅ ABot switched to new execution: {current_name}")
+        if current_exec == execution_id:
+            print(f"✅ ABot switched to new execution: {current_exec}")
             return
 
-        if last_seen != current_name:
-            print(f"🔄 Still seeing old execution: {current_name}")
-            last_seen = current_name
+        if last_seen != current_exec:
+            print(f"🔄 Still seeing execution: {current_exec}")
+            last_seen = current_exec
 
         time.sleep(5)
 
