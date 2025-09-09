@@ -55,20 +55,31 @@ def execute_feature():
 
 def wait_for_new_execution(feature_tag):
     print(f"⏳ Waiting for ABot to switch to execution {feature_tag}...")
-    last_seen = None
     while True:
         res = requests.get(STATUS_URL, headers=headers, timeout=30)
         res.raise_for_status()
         data = res.json()
 
-        current_exec = data.get("executing", {})
-        current_tag = current_exec.get("featureTag")
-        current_id = current_exec.get("executionId")
+        # If API returns a list
+        if isinstance(data, list):
+            for exec_item in data:
+                tag = exec_item.get("featureTag")
+                exec_id = exec_item.get("executionId")
+                if tag == feature_tag:
+                    print(f"✅ ABot switched to new execution: {exec_id} (tag={tag})")
+                    return exec_id
 
-        if current_tag == feature_tag:
-            print(f"✅ ABot switched to new execution: {current_id} (tag={current_tag})")
-            return current_id   # <--- return the real exec id
+        # If API returns a dict with "executing"
+        elif isinstance(data, dict):
+            current_exec = data.get("executing", {})
+            tag = current_exec.get("featureTag")
+            exec_id = current_exec.get("executionId")
+            if tag == feature_tag:
+                print(f"✅ ABot switched to new execution: {exec_id} (tag={tag})")
+                return exec_id
 
+        print("🔄 Still waiting...")
+        time.sleep(5)
 
 
 
