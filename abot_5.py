@@ -55,63 +55,71 @@ def execute_feature():
 
 def poll_current_status(exec_id):
     print("⏳ Polling execution status...\n", flush=True)
-    
+
     while True:
         try:
-            res = requests.get(STATUS_URL, headers=headers, params={"execution": exec_id}, timeout=30)
-            res.raise_for_status()
-            json_data = res.json()
+            # Fetch detailed execution status
+            res_detail = requests.get(DETAIL_STATUS_URL, headers=headers, params={"execution": exec_id}, timeout=30)
+            res_detail.raise_for_status()
+            detail_data = res_detail.json().get("executing", {})
 
-            data = json_data.get("executing") or json_data.get("execution_status") or []
-
-            if isinstance(data, dict):
-                data = [data]
-            if isinstance(data, str):
-                print(f"🟡 Execution status: {data}", flush=True)
+            # If not ready, just wait
+            if not detail_data:
+                print("🟡 Execution not started yet or still initializing...", flush=True)
                 time.sleep(10)
                 continue
 
-            if not data:
+            # Track running/completed steps
+            running_steps = 0
+            for feature, scenarios in detail_data.items():
+                print(f"\nFeature: {feature}", flush=True)
+                for scenario_name, steps in scenarios.items():
+                    print(f"  Scenario: {scenario_name}", flush=True)
+                    for step in steps:
+                        keyword = step.get("keyword", "")
+                        name = step.get("name", "Unknown Step")
+                        status = str(step.get("status", "unknown")).lower()
+                        duration = step.get("duration", "N/A")
+                        timestamp = step.get("timestamp", "N/A")
+
+                        if status == "running":
+                            running_steps += 1
+
+                        print(f"    {keyword} {name} → {status.upper()} (Duration: {duration}, Timestamp: {timestamp})", flush=True)
+
+            # Stop polling if no running steps
+            if running_steps == 0:
                 print("\n✅ Execution completed.\n", flush=True)
                 break
-
-            passed = sum(1 for step in data if isinstance(step, dict) and step.get("status") == 1)
-            failed = sum(1 for step in data if isinstance(step, dict) and step.get("status") != 1)
-            print(f"🟡 Running... Passed={passed}, Failed={failed}", flush=True)
-
-            time.sleep(10)
+            else:
+                print(f"\n🟡 Still running... {running_steps} steps in progress. Waiting 10s...\n", flush=True)
+                time.sleep(10)
 
         except requests.exceptions.RequestException as e:
             print(f"⚠️ Polling error: {e}, retrying in 10s", flush=True)
             time.sleep(10)
 
-
-
     # --- High-Level Summary ---
-    res = requests.get(STATUS_URL, headers=headers, params={"execution": exec_id})
-    res.raise_for_status()
-    exec_data = res.json().get("executing", {})
+    res_summary = requests.get(STATUS_URL, headers=headers, params={"execution": exec_id})
+    res_summary.raise_for_status()
+    exec_data = res_summary.json().get("executing", {})
     execution_status = exec_data.get("execution_status", [])
 
     passed = sum(1 for step in execution_status if step.get("status") == 1)
     failed = sum(1 for step in execution_status if step.get("status") != 1)
-    print(f"📊 High-Level Summary: Passed={passed}, Failed={failed}\n")
+    print(f"📊 High-Level Summary: Passed={passed}, Failed={failed}\n", flush=True)
     for step in execution_status:
         status = "PASS" if step.get("status") == 1 else "FAIL"
-        print(f"Step: {step.get('name')} → {status}")
+        print(f"Step: {step.get('name')} → {status}", flush=True)
 
     # --- Detailed Execution ---
-    res_detail = requests.get(DETAIL_STATUS_URL, headers=headers, params={"execution": exec_id})
-    res_detail.raise_for_status()
-    detail_data = res_detail.json().get("executing", {})
-
     if detail_data:
-        print("\n📋 Detailed Execution Status:")
+        print("\n📋 Detailed Execution Status:", flush=True)
         total_passed, total_failed = 0, 0
         for feature, scenarios in detail_data.items():
-            print(f"\nFeature: {feature}")
+            print(f"\nFeature: {feature}", flush=True)
             for scenario_name, steps in scenarios.items():
-                print(f"  Scenario: {scenario_name}")
+                print(f"  Scenario: {scenario_name}", flush=True)
                 for step in steps:
                     keyword = step.get("keyword", "")
                     name = step.get("name", "Unknown Step")
@@ -119,17 +127,16 @@ def poll_current_status(exec_id):
                     duration = step.get("duration", "N/A")
                     timestamp = step.get("timestamp", "N/A")
 
-                    print(f"    {keyword} {name} → {status.upper()} "
-                          f"(Duration: {duration}, Timestamp: {timestamp})")
+                    print(f"    {keyword} {name} → {status.upper()} (Duration: {duration}, Timestamp: {timestamp})", flush=True)
 
                     if status == "passed":
                         total_passed += 1
                     elif status == "failed":
                         total_failed += 1
 
-        print(f"\n🎯 Detailed Totals: Passed={total_passed}, Failed={total_failed}\n")
+        print(f"\n🎯 Detailed Totals: Passed={total_passed}, Failed={total_failed}\n", flush=True)
     else:
-        print("⚠️ Detailed status not available.\n")
+        print("⚠️ Detailed status not available.\n", flush=True)
 
 
 def get_artifact_by_execution(exec_id):
