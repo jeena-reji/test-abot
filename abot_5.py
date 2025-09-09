@@ -60,6 +60,32 @@ def execute_feature():
     return execution_id
 
 
+def wait_for_new_execution(execution_id):
+    print(f"⏳ Waiting for ABot to switch to execution {execution_id}...")
+    last_seen = None
+    while True:
+        res = requests.get(EXEC_STATUS_URL, headers=headers)
+        data = res.json()
+
+        # Grab some unique marker from the response
+        current_name = None
+        try:
+            current_name = data["executing"]["execution_status"][0]["name"]
+        except Exception:
+            pass
+
+        if current_name and FEATURE_TAG in current_name:
+            print(f"✅ ABot switched to new execution: {current_name}")
+            return
+
+        if last_seen != current_name:
+            print(f"🔄 Still seeing old execution: {current_name}")
+            last_seen = current_name
+
+        time.sleep(5)
+
+
+
 
 def poll_current_status(exec_id):
     print("⏳ Polling execution status...\n", flush=True)
@@ -180,8 +206,4 @@ if __name__ == "__main__":
     login()
     update_config()
     exec_id = execute_feature()
-    poll_current_status(exec_id)
-
-    folder = get_artifact_by_execution(exec_id)
-    if folder:
-        download_and_print_log(folder)
+    wait_for_new_execution(exec_id)
