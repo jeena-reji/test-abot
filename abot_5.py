@@ -52,23 +52,37 @@ def execute_feature():
     time.sleep(2)  # give ABot a moment to register
     return FEATURE_TAG   # just track by tag
 
-
 def wait_for_new_execution(feature_tag):
     print(f"⏳ Waiting for ABot to switch to execution {feature_tag}...")
     while True:
         res = requests.get(STATUS_URL, headers=headers, timeout=30)
         res.raise_for_status()
         data = res.json()
-        print("DEBUG:", json.dumps(data, indent=2))
+        
+        exec_block = data.get("executing", {})
+        exec_list = exec_block.get("executing", [])
+        
+        if not exec_list:
+            print("🟡 No executions found yet...")
+            time.sleep(5)
+            continue
+        
+        current_exec = exec_list[0]
+        current_name = current_exec.get("name", "").lstrip("@")
+        current_id = current_exec.get("id") or current_name
+        is_running = current_exec.get("is_executing", False)
+        
+        if current_name == feature_tag:
+            if not is_running:
+                print(f"✅ Execution finished: {current_id} (tag={current_name})")
+                return current_id
+            else:
+                print(f"🔄 Execution is running: {current_id}")
+        else:
+            print(f"🔄 Waiting for feature tag {feature_tag}, current: {current_name}")
+        
+        time.sleep(5)
 
-        # If API returns a list
-        if isinstance(data, list):
-            for exec_item in data:
-                tag = exec_item.get("featureTag")
-                exec_id = exec_item.get("executionId")
-                if tag == feature_tag:
-                    print(f"✅ ABot switched to new execution: {exec_id} (tag={tag})")
-                    return exec_id
 
         # If API returns a dict with "executing"
         elif isinstance(data, dict):
