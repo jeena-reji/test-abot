@@ -49,29 +49,16 @@ def execute_feature():
     res = requests.post(EXECUTE_URL, headers=headers, json=payload)
     res.raise_for_status()
     exec_info = res.json().get("data", {})
-    
-    # Default execution ID from response
+
+    # Use executionId returned by ABot directly
     execution_id = exec_info.get("executionId") or exec_info.get("timestamp") or FEATURE_TAG
     print(f"▶️ Test started. Execution ID = {execution_id}\n")
 
-    # Try to fetch the latest execution for this feature tag
-    try:
-        time.sleep(2)  # give ABot a moment to register execution
-        res_status = requests.get(STATUS_URL, headers=headers, params={"featureTag": FEATURE_TAG})
-        res_status.raise_for_status()
-        executions = res_status.json().get("executing", [])
+    # Optional: short wait to ensure ABot registers the execution
+    time.sleep(2)
 
-        if executions:
-            # Safely pick the last/latest execution
-            execution_id = executions[-1].get("executionId", execution_id)
-        else:
-            print("🟡 No executions found yet, using default execution ID.")
-    
-    except Exception as e:
-        print(f"⚠️ Could not fetch latest execution: {e}. Using default execution ID.")
-
-    print(f"▶️ Using Execution ID = {execution_id}\n")
     return execution_id
+
 
 
 def poll_current_status(exec_id):
