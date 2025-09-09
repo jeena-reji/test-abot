@@ -179,6 +179,15 @@ def download_and_print_log(folder):
     except requests.exceptions.RequestException:
         return  # silently ignore
 
+def fetch_feature_details(folder, feature_file):
+    params = {"foldername": folder, "featureId": feature_file, "featurename": feature_file}
+    try:
+        res = requests.get(EXEC_FEATURE_DETAILS, headers=headers, params=params, timeout=30)
+        res.raise_for_status()
+        print(json.dumps(res.json(), indent=2))
+    except requests.exceptions.RequestException as e:
+        print(f"⚠️ Error fetching feature details for {feature_file}: {e}")
+
 def fetch_all_feature_details(folder, timeout=60):
     """
     Automatically fetch all feature files from the artifact and print detailed results.
