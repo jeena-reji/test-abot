@@ -12,7 +12,7 @@ DETAIL_STATUS_URL = f"{ABOT_URL}/abot/api/v5/detail_execution_status"
 
 USERNAME = "ajeesh@cazelabs.com"
 PASSWORD = "ajeesh1234"
-FEATURE_TAG = "5gs-initial-registration-with-integrity-and-ciphering-sdcore-0.1.2"
+FEATURE_TAG = "5gs-initial-registration-sdcore-0.0.10"
 
 headers = {"Content-Type": "application/json"}
 
