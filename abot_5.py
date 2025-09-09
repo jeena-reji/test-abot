@@ -42,11 +42,19 @@ def update_config():
 
 def execute_feature():
     print(f"🚀 Executing feature tag: {FEATURE_TAG}")
-    payload = {"params": FEATURE_TAG}
+    payload = {"params": FEATURE_TAG, "build": "default-build"}  # <--- add build
     res = requests.post(EXECUTE_URL, headers=headers, json=payload)
     res.raise_for_status()
-    print("▶️ Feature execution requested.\n")
-    return True  # execution ID not returned, will fetch from /execution_status
+
+    exec_info = res.json().get("data", {})
+    execution_id = exec_info.get("executionId")
+    if not execution_id:
+        timestamp = exec_info.get("timestamp")
+        execution_id = f"{FEATURE_TAG}-{timestamp}" if timestamp else f"{FEATURE_TAG}-{int(time.time())}"
+
+    print(f"▶️ Feature execution requested. Execution ID = {execution_id}\n")
+    return execution_id
+
 
 def find_execution_id(feature_tag, timeout=120):
     print(f"⏳ Waiting for execution of feature '{feature_tag}' to start...")
