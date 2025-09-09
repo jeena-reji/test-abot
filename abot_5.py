@@ -1,4 +1,3 @@
-
 import requests, time, os, json
 from urllib.parse import quote
 
@@ -52,6 +51,7 @@ def execute_feature():
     time.sleep(2)  # give ABot a moment to register
     return FEATURE_TAG   # just track by tag
 
+
 def wait_for_new_execution(feature_tag):
     print(f"⏳ Waiting for ABot to switch to execution {feature_tag}...")
     while True:
@@ -84,24 +84,6 @@ def wait_for_new_execution(feature_tag):
         time.sleep(5)
 
 
-        # If API returns a dict with "executing"
-        # Remove `elif` and just use `if`
-        if isinstance(data, dict):
-            current_exec_block = data.get("executing", {})
-            exec_list_alt = current_exec_block.get("executing", [])
-            if exec_list_alt:
-                current_exec_alt = exec_list_alt[0]
-                tag = current_exec_alt.get("name", "").lstrip("@")
-                exec_id = current_exec_alt.get("id") or tag
-                if tag == feature_tag:
-                    print(f"✅ ABot switched to new execution: {exec_id} (tag={tag})")
-                    return exec_id
-
-        print("🔄 Still waiting...")
-        time.sleep(5)
-
-
-
 def poll_current_status(exec_id):
     print("⏳ Polling execution status...\n", flush=True)
 
@@ -109,17 +91,14 @@ def poll_current_status(exec_id):
         try:
             # Fetch detailed execution status
             res_detail = requests.get(DETAIL_STATUS_URL, headers=headers, timeout=30)
-
             res_detail.raise_for_status()
             detail_data = res_detail.json().get("executing", {})
 
-            # If not ready, just wait
             if not detail_data:
                 print("🟡 Execution not started yet or still initializing...", flush=True)
                 time.sleep(10)
                 continue
 
-            # Track running/completed steps
             running_steps = 0
             for feature, scenarios in detail_data.items():
                 print(f"\nFeature: {feature}", flush=True)
@@ -137,7 +116,6 @@ def poll_current_status(exec_id):
 
                         print(f"    {keyword} {name} → {status.upper()} (Duration: {duration}, Timestamp: {timestamp})", flush=True)
 
-            # Stop polling if no running steps
             if running_steps == 0:
                 print("\n✅ Execution completed.\n", flush=True)
                 break
@@ -149,45 +127,18 @@ def poll_current_status(exec_id):
             print(f"⚠️ Polling error: {e}, retrying in 10s", flush=True)
             time.sleep(10)
 
-    # --- High-Level Summary ---
-    res_summary = requests.get(STATUS_URL, headers=headers, timeout=30)
+    # --- High-Level Summary from detailed steps ---
+    total_passed, total_failed = 0, 0
+    for feature, scenarios in detail_data.items():
+        for scenario_name, steps in scenarios.items():
+            for step in steps:
+                status = str(step.get("status", "unknown")).lower()
+                if status == "passed":
+                    total_passed += 1
+                elif status == "failed":
+                    total_failed += 1
 
-    res_summary.raise_for_status()
-    exec_data = res_summary.json().get("executing", {})
-    execution_status = exec_data.get("execution_status", [])
-
-    passed = sum(1 for step in execution_status if step.get("status") == 1)
-    failed = sum(1 for step in execution_status if step.get("status") != 1)
-    print(f"📊 High-Level Summary: Passed={passed}, Failed={failed}\n", flush=True)
-    for step in execution_status:
-        status = "PASS" if step.get("status") == 1 else "FAIL"
-        print(f"Step: {step.get('name')} → {status}", flush=True)
-
-    # --- Detailed Execution ---
-    if detail_data:
-        print("\n📋 Detailed Execution Status:", flush=True)
-        total_passed, total_failed = 0, 0
-        for feature, scenarios in detail_data.items():
-            print(f"\nFeature: {feature}", flush=True)
-            for scenario_name, steps in scenarios.items():
-                print(f"  Scenario: {scenario_name}", flush=True)
-                for step in steps:
-                    keyword = step.get("keyword", "")
-                    name = step.get("name", "Unknown Step")
-                    status = str(step.get("status", "unknown")).lower()
-                    duration = step.get("duration", "N/A")
-                    timestamp = step.get("timestamp", "N/A")
-
-                    print(f"    {keyword} {name} → {status.upper()} (Duration: {duration}, Timestamp: {timestamp})", flush=True)
-
-                    if status == "passed":
-                        total_passed += 1
-                    elif status == "failed":
-                        total_failed += 1
-
-        print(f"\n🎯 Detailed Totals: Passed={total_passed}, Failed={total_failed}\n", flush=True)
-    else:
-        print("⚠️ Detailed status not available.\n", flush=True)
+    print(f"📊 High-Level Summary: Passed={total_passed}, Failed={total_failed}\n", flush=True)
 
 
 def get_artifact_by_execution(exec_id):
@@ -214,6 +165,7 @@ def download_and_print_log(folder):
     with open("abot_log.log", "w") as f:
         f.write(log_text)
 
+
 if __name__ == "__main__":
     os.system('cls' if os.name == 'nt' else 'clear')
 
@@ -228,5 +180,3 @@ if __name__ == "__main__":
         download_and_print_log(folder)
 
     print("=== ABot Test Automation Finished ===")
-
-
