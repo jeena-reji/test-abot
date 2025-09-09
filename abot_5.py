@@ -72,18 +72,15 @@ def wait_for_new_execution(feature_tag):
         current_exec = exec_list[0]
         current_name = current_exec.get("name", "").lstrip("@")
         current_id = current_exec.get("id") or current_name
-        is_running = current_exec.get("is_executing", False)
         
         if current_name == feature_tag:
-            if not is_running:
-                print(f"✅ Execution finished: {current_id} (tag={current_name})")
-                return current_id
-            else:
-                print(f"🔄 Execution is running: {current_id}")
+            print(f"✅ ABot switched to execution: {current_id} (tag={current_name})")
+            return current_id
         else:
             print(f"🔄 Waiting for feature tag {feature_tag}, current: {current_name}")
         
         time.sleep(5)
+
 
 
 def poll_current_status(exec_id):
