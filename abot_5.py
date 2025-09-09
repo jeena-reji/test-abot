@@ -57,6 +57,26 @@ def execute_feature():
     return execution_id
 
 
+def wait_for_execution_start(exec_id, timeout=60):
+    """Wait until ABot REST API recognizes the new execution"""
+    print(f"⏳ Waiting for execution {exec_id} to appear...", flush=True)
+    start_time = time.time()
+    
+    while time.time() - start_time < timeout:
+        try:
+            res = requests.get(STATUS_URL, headers=headers, params={"execution": exec_id}, timeout=10)
+            if res.status_code == 200 and res.json().get("executing"):
+                print(f"✅ Execution {exec_id} registered.", flush=True)
+                return True
+        except requests.exceptions.RequestException:
+            pass
+        time.sleep(2)
+    
+    print(f"⚠️ Timeout: execution {exec_id} did not appear within {timeout}s", flush=True)
+    return False
+
+
+
 
 def poll_current_status(exec_id):
     print("⏳ Polling execution status...\n", flush=True)
@@ -176,8 +196,14 @@ if __name__ == "__main__":
 
     login()
     update_config()
+    
     exec_id = execute_feature()
-    poll_current_status(exec_id)
+
+    # ← NEW: Wait for ABot to register the execution
+    if wait_for_execution_start(exec_id):
+        poll_current_status(exec_id)
+    else:
+        print("❌ Could not poll current execution because it wasn't registered in ABot API.", flush=True)
 
     folder = get_artifact_by_execution(exec_id)
     if folder:
