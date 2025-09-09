@@ -67,13 +67,8 @@ def wait_for_new_execution(feature_tag):
 
         if current_tag == feature_tag:
             print(f"✅ ABot switched to new execution: {current_id} (tag={current_tag})")
-            return current_id  # now we finally have a reliable executionId
+            return current_id   # <--- return the real exec id
 
-        if last_seen != current_tag:
-            print(f"🔄 Still seeing execution: {current_id} / Feature: {current_tag}")
-            last_seen = current_tag
-
-        time.sleep(5)
 
 
 
@@ -190,16 +185,15 @@ def download_and_print_log(folder):
         f.write(log_text)
 
 if __name__ == "__main__":
-    # Clear console at start
     os.system('cls' if os.name == 'nt' else 'clear')
 
     login()
     update_config()
-    exec_id = execute_feature()
-    wait_for_new_execution(exec_id)
-    poll_current_status(exec_id)
+    exec_marker = execute_feature()
+    real_exec_id = wait_for_new_execution(exec_marker)
+    poll_current_status(real_exec_id)
 
-    folder = get_artifact_by_execution(exec_id)
+    folder = get_artifact_by_execution(real_exec_id)
     if folder:
         download_and_print_log(folder)
 
