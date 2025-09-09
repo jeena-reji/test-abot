@@ -255,11 +255,11 @@ if __name__ == "__main__":
     real_exec_id = wait_for_new_execution(exec_marker)
     poll_current_status(real_exec_id)
 
-   folder = wait_for_artifact_by_tag(FEATURE_TAG, timeout=300)
-
+    # Correctly aligned
+    folder = wait_for_artifact_by_tag(FEATURE_TAG, timeout=300)
     if folder:
         download_and_print_log(folder)
-        fetch_artifact_summary(folder)   # <-- NEW: Fetch and print feature summary
+        fetch_artifact_summary(folder)
 
     print("=== ABot Test Automation Finished ===")
 
