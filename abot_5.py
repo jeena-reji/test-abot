@@ -138,9 +138,11 @@ def poll_current_status(exec_id):
 
     print(f"📊 High-Level Summary: Passed={total_passed}, Failed={total_failed}\n", flush=True)
 
-def wait_for_artifact_by_tag(feature_tag, timeout=120):
-    """Wait until ABot creates the artifact folder for the given feature tag"""
+def wait_for_latest_artifact_by_tag(feature_tag, timeout=300):
+    """Wait until the latest ABot artifact folder for a feature tag is created."""
     start_time = time.time()
+    latest_folder = None
+
     while time.time() - start_time < timeout:
         try:
             res_latest = requests.get(LATEST_ARTIFACT_URL, headers=headers)
@@ -148,13 +150,18 @@ def wait_for_artifact_by_tag(feature_tag, timeout=120):
             latest_data = res_latest.json().get("data", {})
             folder_name = latest_data.get("latest_artifact_timestamp")
             if folder_name and feature_tag in folder_name:
-                print(f"✅ Found artifact folder: {folder_name}")
-                return folder_name
+                if folder_name != latest_folder:
+                    print(f"✅ Found latest artifact folder: {folder_name}")
+                    latest_folder = folder_name
+                    # optional: wait 2-3s to ensure summary is ready
+                return latest_folder
         except requests.exceptions.RequestException:
             pass
         time.sleep(5)
+
     print(f"⚠️ Artifact for tag '{feature_tag}' not found in {timeout}s")
     return None
+
 
 
 def download_and_print_log(folder):
@@ -256,7 +263,7 @@ if __name__ == "__main__":
     poll_current_status(real_exec_id)
 
     # Correctly aligned
-    folder = wait_for_artifact_by_tag(FEATURE_TAG, timeout=300)
+    folder = wait_for_latest_artifact_by_tag(FEATURE_TAG, timeout=300)
     if folder:
         download_and_print_log(folder)
         fetch_artifact_summary(folder)
