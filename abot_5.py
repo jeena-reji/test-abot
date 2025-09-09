@@ -90,13 +90,15 @@ def poll_current_status(exec_id):
             # Fetch detailed execution status
             res_detail = requests.get(DETAIL_STATUS_URL, headers=headers, params={"execution": exec_id}, timeout=30)
             res_detail.raise_for_status()
-            detail_data = res_detail.json().get("executing", {})
-
-            # If not ready, just wait
+            all_detail_data = res_detail.json().get("executing", {})
+            
+            # Only use the data for our current execution_id
+            detail_data = all_detail_data.get(exec_id)
             if not detail_data:
-                print("🟡 Execution not started yet or still initializing...", flush=True)
+                print("🟡 Execution not started yet for this execution ID...", flush=True)
                 time.sleep(10)
                 continue
+
 
             # Track running/completed steps
             running_steps = 0
