@@ -94,7 +94,8 @@ def poll_current_status(exec_id):
     while True:
         try:
             # Fetch detailed execution status
-            res_detail = requests.get(DETAIL_STATUS_URL, headers=headers, params={"execution": exec_id}, timeout=30)
+            res_detail = requests.get(DETAIL_STATUS_URL, headers=headers, timeout=30)
+
             res_detail.raise_for_status()
             detail_data = res_detail.json().get("executing", {})
 
@@ -135,7 +136,8 @@ def poll_current_status(exec_id):
             time.sleep(10)
 
     # --- High-Level Summary ---
-    res_summary = requests.get(STATUS_URL, headers=headers, params={"execution": exec_id})
+    res_summary = requests.get(STATUS_URL, headers=headers, timeout=30)
+
     res_summary.raise_for_status()
     exec_data = res_summary.json().get("executing", {})
     execution_status = exec_data.get("execution_status", [])
