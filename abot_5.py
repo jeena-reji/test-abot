@@ -62,6 +62,9 @@ def poll_both_statuses(exec_id):
         res = requests.get(STATUS_URL, headers=headers, params={"execution": exec_id})
         res.raise_for_status()
         exec_data = res.json().get("executing", {})
+
+
+        print("🟡 Current executing keys:", list(exec_data.keys()))
         if not exec_data:
             print("🟡 Waiting for execution data...")
             time.sleep(5)
