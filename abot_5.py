@@ -138,29 +138,23 @@ def poll_current_status(exec_id):
 
     print(f"📊 High-Level Summary: Passed={total_passed}, Failed={total_failed}\n", flush=True)
 
-
-def get_artifact_folder(exec_id=None):
-    """Fetch artifact folder reliably, either by execution ID or latest."""
-    folder_name = None
-
-    if exec_id:
-        res = requests.get(ARTIFACT_BY_EXEC_URL, headers=headers, params={"executionId": exec_id})
-        if res.ok and res.json().get("data"):
-            folder_name = res.json()["data"].get("folderName")
-
-    # If per-execution artifact not found, fallback to latest artifact
-    if not folder_name:
-        res_latest = requests.get(LATEST_ARTIFACT_URL, headers=headers)
-        res_latest.raise_for_status()
-        latest_data = res_latest.json().get("data", {})
-        folder_name = latest_data.get("latest_artifact_timestamp")
-        artifact_url = latest_data.get("artifact_urls", [None])[0]
-        if folder_name:
-            print(f"ℹ️ Latest artifact: {folder_name}")
-            if artifact_url:
-                print(f"🔗 Artifact GUI URL: {artifact_url}")
-
-    return folder_name
+def wait_for_artifact_by_tag(feature_tag, timeout=120):
+    """Wait until ABot creates the artifact folder for the given feature tag"""
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            res_latest = requests.get(LATEST_ARTIFACT_URL, headers=headers)
+            res_latest.raise_for_status()
+            latest_data = res_latest.json().get("data", {})
+            folder_name = latest_data.get("latest_artifact_timestamp")
+            if folder_name and feature_tag in folder_name:
+                print(f"✅ Found artifact folder: {folder_name}")
+                return folder_name
+        except requests.exceptions.RequestException:
+            pass
+        time.sleep(5)
+    print(f"⚠️ Artifact for tag '{feature_tag}' not found in {timeout}s")
+    return None
 
 
 def download_and_print_log(folder):
@@ -261,7 +255,8 @@ if __name__ == "__main__":
     real_exec_id = wait_for_new_execution(exec_marker)
     poll_current_status(real_exec_id)
 
-    folder = get_artifact_folder(real_exec_id)
+   folder = wait_for_artifact_by_tag(FEATURE_TAG, timeout=300)
+
     if folder:
         download_and_print_log(folder)
         fetch_artifact_summary(folder)   # <-- NEW: Fetch and print feature summary
