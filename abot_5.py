@@ -54,42 +54,36 @@ def execute_feature():
 
 
 def poll_current_status(exec_id):
-    print("⏳ Polling execution status...\n")
+    print("⏳ Polling execution status...\n", flush=True)
+    
     while True:
         try:
-            # Fetch high-level execution status
             res = requests.get(STATUS_URL, headers=headers, params={"execution": exec_id}, timeout=30)
             res.raise_for_status()
             json_data = res.json()
 
-            # ABot may return different structures
             data = json_data.get("executing") or json_data.get("execution_status") or []
 
-            # If data is a dict, wrap it in a list
             if isinstance(data, dict):
                 data = [data]
-            # If data is a string, just print and skip parsing
             if isinstance(data, str):
-                print(f"🟡 Execution status: {data}")
+                print(f"🟡 Execution status: {data}", flush=True)
                 time.sleep(10)
                 continue
 
-            # Now safe to iterate
+            if not data:
+                print("\n✅ Execution completed.\n", flush=True)
+                break
+
             passed = sum(1 for step in data if isinstance(step, dict) and step.get("status") == 1)
             failed = sum(1 for step in data if isinstance(step, dict) and step.get("status") != 1)
-            print(f"🟡 Running... Passed={passed}, Failed={failed}")
-
-            # Stop if nothing is running
-            if not data:
-                break
+            print(f"🟡 Running... Passed={passed}, Failed={failed}", flush=True)
 
             time.sleep(10)
 
         except requests.exceptions.RequestException as e:
-            print(f"⚠️ Polling error: {e}, retrying in 10s")
+            print(f"⚠️ Polling error: {e}, retrying in 10s", flush=True)
             time.sleep(10)
-
-    print("\n✅ Execution completed.")
 
 
 
