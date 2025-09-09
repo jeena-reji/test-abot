@@ -197,8 +197,10 @@ def fetch_artifact_summary(folder):
             return
 
         summary_result = data.get("feature_summary", {}).get("result", {})
+
+        # Wrap in list if it's a dict
         if isinstance(summary_result, dict):
-            summary_list = [summary_result]  # wrap single dict in list
+            summary_list = [summary_result]
         elif isinstance(summary_result, list):
             summary_list = summary_result
         else:
@@ -206,24 +208,34 @@ def fetch_artifact_summary(folder):
             return
 
         for feature_item in summary_list:
-            feature_data = feature_item.get("data", {})
-            feature_name = feature_data.get("featureName", "Unknown Feature")
-            steps = feature_data.get("steps", {})
-            scenarios = steps.get("scenario", {})
-            features = steps.get("features", {})
+            feature_data_list = feature_item.get("data", [])
             
-            print(f"Feature: {feature_name}")
-            print(f"  Feature Status: {features.get('status', 'N/A').upper()} | Duration: {features.get('duration', 'N/A')}s")
-            print(f"  Total Scenarios: {scenarios.get('total', 'N/A')} | Passed: {scenarios.get('passed', 'N/A')} | Failed: {scenarios.get('failed', 'N/A')}")
-            total_steps = steps.get("steps", {})
-            print(f"  Total Steps: {total_steps.get('total', 'N/A')} | Passed: {total_steps.get('passed', 'N/A')} | Failed: {total_steps.get('failed', 'N/A')} | Skipped: {total_steps.get('skipped', 'N/A')}")
-            
-            ue_summary = feature_data.get("totalUEPassFail", {})
-            if ue_summary:
-                print(f"  UE Summary: Passed={ue_summary.get('passed', 'N/A')} | Failed={ue_summary.get('failed', 'N/A')}")
+            # Make sure feature_data_list is a list
+            if isinstance(feature_data_list, dict):
+                feature_data_list = [feature_data_list]
+            elif not isinstance(feature_data_list, list):
+                print("⚠️ Unexpected format inside data")
+                continue
+
+            for feature_data in feature_data_list:
+                feature_name = feature_data.get("featureName", "Unknown Feature")
+                steps = feature_data.get("steps", {})
+                scenarios = steps.get("scenario", {})
+                features = steps.get("features", {})
+                
+                print(f"Feature: {feature_name}")
+                print(f"  Feature Status: {features.get('status', 'N/A').upper()} | Duration: {features.get('duration', 'N/A')}s")
+                print(f"  Total Scenarios: {scenarios.get('total', 'N/A')} | Passed: {scenarios.get('passed', 'N/A')} | Failed: {scenarios.get('failed', 'N/A')}")
+                total_steps = steps.get("steps", {})
+                print(f"  Total Steps: {total_steps.get('total', 'N/A')} | Passed: {total_steps.get('passed', 'N/A')} | Failed: {total_steps.get('failed', 'N/A')} | Skipped: {total_steps.get('skipped', 'N/A')}")
+                
+                ue_summary = feature_data.get("totalUEPassFail", {})
+                if ue_summary:
+                    print(f"  UE Summary: Passed={ue_summary.get('passed', 'N/A')} | Failed={ue_summary.get('failed', 'N/A')}")
 
     except requests.exceptions.RequestException as e:
         print(f"⚠️ Error fetching feature summary: {e}")
+
 
 # --- In your main __name__ block, call this after downloading the log ---
 if __name__ == "__main__":
