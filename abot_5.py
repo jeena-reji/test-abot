@@ -81,28 +81,26 @@ def poll_both_statuses(exec_id):
         total_passed, total_failed = 0, 0
         if detail_data:
             print("\n📋 Detailed Execution Status:")
-            for feature, steps in detail_data.items():
+            for feature, scenarios in detail_data.items():
                 print(f"\nFeature: {feature}")
-                for step in steps:
-                    if isinstance(step, dict):
-                        name = step.get("name", "Unknown Step")
-                        keyword = step.get("keyword", "")
-                        status = str(step.get("status", "unknown")).lower()
-                        duration = step.get("duration", "N/A")
-                        timestamp = step.get("timestamp", "N/A")
-                    else:
-                        name = str(step)
-                        keyword = ""
-                        status = "unknown"
-                        duration = "N/A"
-                        timestamp = "N/A"
+                for scenario_name, steps in scenarios.items():
+                    print(f"  Scenario: {scenario_name}")
+                    for step in steps:
+                        if isinstance(step, dict):
+                            keyword = step.get("keyword", "")
+                            name = step.get("name", "Unknown Step")
+                            status = str(step.get("status", "unknown")).lower()
+                            duration = step.get("duration", "N/A")
+                            timestamp = step.get("timestamp", "N/A")
+            
+                            print(f"    {keyword} {name} → {status.upper()} "
+                                  f"(Duration: {duration}, Timestamp: {timestamp})")
+            
+                            if status == "passed":
+                                total_passed += 1
+                            elif status == "failed":
+                                total_failed += 1
 
-                    print(f"{keyword} {name} → {status.upper()} (Duration: {duration}, Timestamp: {timestamp})")
-
-                    if status == "passed":
-                        total_passed += 1
-                    elif status == "failed":
-                        total_failed += 1
 
             print(f"\n🎯 Detailed Totals: Passed={total_passed}, Failed={total_failed}")
         else:
