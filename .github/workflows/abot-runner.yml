@@ -31,7 +31,8 @@ jobs:
             FEATURE_TAG: ${{ github.event.inputs.feature_tag }}
         run: |
             echo "=== ABot Test Automation Started ==="
-            python abot_5.py | tee abot_log.log
+            python -u abot_5.py | tee abot_log.log
+
             echo "=== ABot Test Automation Finished ==="
   
 
