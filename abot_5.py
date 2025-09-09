@@ -200,8 +200,6 @@ def download_and_print_log(folder):
     with open("abot_log.log", "w") as f:
         f.write(log_text)
 
-
-# ----------------- MAIN -----------------
 if __name__ == "__main__":
     # Clear console at start
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -210,3 +208,12 @@ if __name__ == "__main__":
     update_config()
     exec_id = execute_feature()
     wait_for_new_execution(exec_id)
+    poll_current_status(exec_id)
+
+    folder = get_artifact_by_execution(exec_id)
+    if folder:
+        download_and_print_log(folder)
+
+    print("=== ABot Test Automation Finished ===")
+
+
