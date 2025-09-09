@@ -85,13 +85,17 @@ def wait_for_new_execution(feature_tag):
 
 
         # If API returns a dict with "executing"
-        elif isinstance(data, dict):
-            current_exec = data.get("executing", {})
-            tag = current_exec.get("featureTag")
-            exec_id = current_exec.get("executionId")
-            if tag == feature_tag:
-                print(f"✅ ABot switched to new execution: {exec_id} (tag={tag})")
-                return exec_id
+        # Remove `elif` and just use `if`
+        if isinstance(data, dict):
+            current_exec_block = data.get("executing", {})
+            exec_list_alt = current_exec_block.get("executing", [])
+            if exec_list_alt:
+                current_exec_alt = exec_list_alt[0]
+                tag = current_exec_alt.get("name", "").lstrip("@")
+                exec_id = current_exec_alt.get("id") or tag
+                if tag == feature_tag:
+                    print(f"✅ ABot switched to new execution: {exec_id} (tag={tag})")
+                    return exec_id
 
         print("🔄 Still waiting...")
         time.sleep(5)
