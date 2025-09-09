@@ -62,8 +62,8 @@ def poll_both_statuses(exec_id):
         res = requests.get(STATUS_URL, headers=headers, params={"execution": exec_id})
         res.raise_for_status()
         exec_data = res.json().get("executing", {})
-        execution_status = exec_data.get("execution_status", [])
 
+        execution_status = exec_data.get("execution_status", [])
         if execution_status:
             passed = sum(1 for step in execution_status if step.get("status") == 1)
             failed = sum(1 for step in execution_status if step.get("status") != 1)
@@ -112,30 +112,14 @@ def poll_both_statuses(exec_id):
             time.sleep(10)
 
 
-
-            print(f"\n🎯 Detailed Totals: Passed={total_passed}, Failed={total_failed}")
-        else:
-            print("⚠️ Detailed status not ready yet.")
-
-        # Stop polling if execution finished
-        if exec_list and not exec_list[0].get("is_executing", True):
-            print("\n✅ Execution completed.")
-            break
-        else:
-            print("🟡 Still running... waiting 10s")
-            time.sleep(10)
-
-
 def get_execution_status(exec_id):
-    url = f"{STATUS_URL}?execution={exec_id}"
-    res = requests.get(url, headers=headers)
+    res = requests.get(f"{STATUS_URL}?execution={exec_id}", headers=headers)
     res.raise_for_status()
     return res.json()
 
 
 def get_detail_execution_status(exec_id):
-    url = f"{DETAIL_STATUS_URL}?execution={exec_id}"
-    res = requests.get(url, headers=headers)
+    res = requests.get(f"{DETAIL_STATUS_URL}?execution={exec_id}", headers=headers)
     res.raise_for_status()
     return res.json()
 
