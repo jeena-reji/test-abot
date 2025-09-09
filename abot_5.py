@@ -61,23 +61,32 @@ def execute_feature():
     return execution_id
 
 
-def wait_for_execution_start(exec_id, timeout=60):
-    """Wait until ABot REST API recognizes the new execution"""
-    print(f"⏳ Waiting for execution {exec_id} to appear...", flush=True)
+def wait_for_execution_start(feature_tag, timeout=120):
+    """Poll /execution_status until our feature_tag appears in running executions"""
+    print(f"⏳ Waiting for execution of feature '{feature_tag}' to start...", flush=True)
     start_time = time.time()
-    
+
     while time.time() - start_time < timeout:
         try:
-            res = requests.get(STATUS_URL, headers=headers, params={"execution": exec_id}, timeout=10)
-            if res.status_code == 200 and res.json().get("executing"):
-                print(f"✅ Execution {exec_id} registered.", flush=True)
-                return True
+            res = requests.get(STATUS_URL, headers=headers, timeout=10)
+            res.raise_for_status()
+            all_exec = res.json().get("executing", {})
+            
+            # Check if any feature matches our tag
+            for exec_id, exec_info in all_exec.items():
+                features = exec_info.get("feature_files", [])
+                if any(feature_tag in f for f in features):
+                    print(f"✅ Execution started: {exec_id}")
+                    return exec_id  # Return the actual execution ID found
         except requests.exceptions.RequestException:
             pass
-        time.sleep(2)
-    
-    print(f"⚠️ Timeout: execution {exec_id} did not appear within {timeout}s", flush=True)
-    return False
+
+        print("🟡 Execution not started yet... retrying in 5s", flush=True)
+        time.sleep(5)
+
+    print(f"⚠️ Timeout: execution of feature '{feature_tag}' did not start.", flush=True)
+    return None
+
 
 
 
@@ -203,13 +212,12 @@ if __name__ == "__main__":
     login()
     update_config()
     
-    exec_id = execute_feature()
-
-    # ← NEW: Wait for ABot to register the execution
-    if wait_for_execution_start(exec_id):
-        poll_current_status(exec_id)
+    exec_id = wait_for_execution_start(FEATURE_TAG)
+    if exec_id:
+        poll_current_status(exec_id)  # Use the found execution ID
     else:
-        print("❌ Could not poll current execution because it wasn't registered in ABot API.", flush=True)
+        print("❌ Could not find the execution.", flush=True)
+
 
     folder = get_artifact_by_execution(exec_id)
     if folder:
