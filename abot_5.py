@@ -45,46 +45,35 @@ def update_config():
 
 def execute_feature():
     print(f"🚀 Executing feature tag: {FEATURE_TAG}")
-    payload = {"params": FEATURE_TAG}
+    payload = {"params": FEATURE_TAG, "build": "default-build"}
     res = requests.post(EXECUTE_URL, headers=headers, json=payload)
     res.raise_for_status()
-    exec_info = res.json().get("data", {})
-
-    # Use executionId returned by ABot directly
-    execution_id = exec_info.get("executionId") or exec_info.get("timestamp") or FEATURE_TAG
-    print(f"▶️ Test started. Execution ID = {execution_id}\n")
-
-    # Optional: short wait to ensure ABot registers the execution
-    time.sleep(2)
-
-    return execution_id
+    print("▶️ Test started.\n")
+    time.sleep(2)  # give ABot a moment to register
+    return FEATURE_TAG   # just track by tag
 
 
-
-def wait_for_new_execution(execution_id):
-    print(f"⏳ Waiting for ABot to switch to execution {execution_id}...")
+def wait_for_new_execution(feature_tag):
+    print(f"⏳ Waiting for ABot to switch to execution {feature_tag}...")
     last_seen = None
     while True:
         res = requests.get(STATUS_URL, headers=headers, timeout=30)
         res.raise_for_status()
         data = res.json()
 
-        current_exec = None
-        try:
-            current_exec = data["executing"].get("executionId")
-        except Exception:
-            pass
+        current_exec = data.get("executing", {})
+        current_tag = current_exec.get("featureTag")
+        current_id = current_exec.get("executionId")
 
-        if current_exec == execution_id:
-            print(f"✅ ABot switched to new execution: {current_exec}")
-            return
+        if current_tag == feature_tag:
+            print(f"✅ ABot switched to new execution: {current_id} (tag={current_tag})")
+            return current_id  # now we finally have a reliable executionId
 
-        if last_seen != current_exec:
-            print(f"🔄 Still seeing execution: {current_exec}")
-            last_seen = current_exec
+        if last_seen != current_tag:
+            print(f"🔄 Still seeing execution: {current_id} / Feature: {current_tag}")
+            last_seen = current_tag
 
         time.sleep(5)
-
 
 
 
