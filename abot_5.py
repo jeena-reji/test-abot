@@ -51,8 +51,8 @@ def execute_feature():
     res = requests.post(EXECUTE_URL, headers=headers, json=payload)
     res.raise_for_status()
     print("▶️ Test started.\n")
-    time.sleep(2)  # give ABot a moment to register
-    return FEATURE_TAG   # just track by tag
+    time.sleep(2)
+    return FEATURE_TAG
 
 
 def wait_for_new_execution(feature_tag):
@@ -63,9 +63,7 @@ def wait_for_new_execution(feature_tag):
         res.raise_for_status()
         data = res.json()
         
-        exec_block = data.get("executing", {})
-        exec_list = exec_block.get("executing", [])
-        
+        exec_list = data.get("executing", {}).get("executing", [])
         if not exec_list:
             time.sleep(5)
             continue
@@ -86,13 +84,11 @@ def wait_for_new_execution(feature_tag):
         time.sleep(5)
 
 
-
 def poll_current_status(exec_id):
     print("⏳ Polling execution status...\n", flush=True)
 
     while True:
         try:
-            # Fetch detailed execution status
             res_detail = requests.get(DETAIL_STATUS_URL, headers=headers, timeout=30)
             res_detail.raise_for_status()
             detail_data = res_detail.json().get("executing", {})
@@ -130,7 +126,6 @@ def poll_current_status(exec_id):
             print(f"⚠️ Polling error: {e}, retrying in 10s", flush=True)
             time.sleep(10)
 
-    # --- High-Level Summary from detailed steps ---
     total_passed, total_failed = 0, 0
     for feature, scenarios in detail_data.items():
         for scenario_name, steps in scenarios.items():
@@ -144,56 +139,29 @@ def poll_current_status(exec_id):
     print(f"📊 High-Level Summary: Passed={total_passed}, Failed={total_failed}\n", flush=True)
 
 
-def get_artifact_by_execution(exec_id=None):
+def get_artifact_folder(exec_id=None):
+    """Fetch artifact folder reliably, either by execution ID or latest."""
+    folder_name = None
+
     if exec_id:
         res = requests.get(ARTIFACT_BY_EXEC_URL, headers=headers, params={"executionId": exec_id})
-    else:
-        res = None
-    
-    if not res or res.status_code == 404 or not res.json().get("data"):
-        print("⚠️ No artifact found for this execution, trying latest artifact API...")
+        if res.ok and res.json().get("data"):
+            folder_name = res.json()["data"].get("folderName")
+
+    # If per-execution artifact not found, fallback to latest artifact
+    if not folder_name:
         res_latest = requests.get(LATEST_ARTIFACT_URL, headers=headers)
         res_latest.raise_for_status()
         latest_data = res_latest.json().get("data", {})
-        artifact_name = latest_data.get("latest_artifact_timestamp")
+        folder_name = latest_data.get("latest_artifact_timestamp")
         artifact_url = latest_data.get("artifact_urls", [None])[0]
-        if artifact_name:
-            print(f"ℹ️ Latest artifact: {artifact_name}")
+        if folder_name:
+            print(f"ℹ️ Latest artifact: {folder_name}")
             if artifact_url:
                 print(f"🔗 Artifact GUI URL: {artifact_url}")
-            return artifact_name
-        return None
-    res.raise_for_status()
-    data = res.json().get("data", {})
-    return data.get("folderName")
 
-def print_clean_log(folder):
-    print("\n📋 Clean Detailed Log:\n")
-    
-    # Feature summary
-    params = {"foldername": folder}
-    res = requests.get(EXEC_FEATURE_DETAILS, headers=headers, params=params)
-    if res.status_code == 200:
-        details = res.json().get("featureDetails", {}).get("result", {})
-        for feature in details.get("featureReport", []):
-            print(f"Feature: {feature.get('featureName')} → {feature['features']['status'].upper()} (Duration: {feature['features']['duration']}s)")
-            for scenario in feature.get("senario", []):
-                print(f"  Scenario: {scenario.get('name')} → {scenario['status'].upper()}")
-    
-    # Failure details
-    res_fail = requests.get(EXEC_FAILURE_DETAILS, headers=headers, params=params)
-    if res_fail.status_code == 200:
-        failures = res_fail.json().get("failureDetails", [])
-        if failures:
-            print("\n❌ Failure Details:")
-            for fail in failures:
-                for scenario in fail.get("ScenarioDetails", []):
-                    print(f"  Scenario: {scenario['name']} → {scenario['status'].upper()}")
-                    for step in scenario.get("stepsDetails", []):
-                        if step.get("status") == "failed":
-                            err = step.get("errorDetails", {})
-                            print(f"    Step: {step['name']} → FAILED")
-                            print(f"      Error Type: {err.get('type')}, Desc: {err.get('desc')}")
+    return folder_name
+
 
 def download_and_print_log(folder):
     safe_folder = quote(folder)
@@ -209,7 +177,44 @@ def download_and_print_log(folder):
     with open("abot_log.log", "w") as f:
         f.write(log_text)
 
+def fetch_artifact_summary(folder):
+    """
+    Fetch ABot artifact feature summary using execFeatureSummary API.
+    """
+    print(f"\n📋 Fetching feature summary for artifact: {folder}\n")
+    page = 1
+    limit = 9999
+    params = {"foldername": folder, "page": page, "limit": limit}
+    
+    try:
+        res = requests.get(f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary", headers=headers, params=params, timeout=30)
+        res.raise_for_status()
+        data = res.json()
+        
+        if data.get("status", "").lower() != "ok":
+            print(f"⚠️ Failed to fetch feature summary: {data.get('message')}")
+            return
+        
+        summary = data.get("feature_summary", {}).get("result", {})
+        feature_name = summary.get("data", {}).get("featureName", "Unknown Feature")
+        steps = summary.get("data", {}).get("steps", {})
+        scenarios = steps.get("scenario", {})
+        features = steps.get("features", {})
+        
+        print(f"Feature: {feature_name}")
+        print(f"  Feature Status: {features.get('status', 'N/A').upper()} | Duration: {features.get('duration', 'N/A')}s")
+        print(f"  Total Scenarios: {scenarios.get('total', 'N/A')} | Passed: {scenarios.get('passed', 'N/A')} | Failed: {scenarios.get('failed', 'N/A')}")
+        total_steps = steps.get("steps", {})
+        print(f"  Total Steps: {total_steps.get('total', 'N/A')} | Passed: {total_steps.get('passed', 'N/A')} | Failed: {total_steps.get('failed', 'N/A')} | Skipped: {total_steps.get('skipped', 'N/A')}")
+        
+        ue_summary = summary.get("data", {}).get("totalUEPassFail", {})
+        if ue_summary:
+            print(f"  UE Summary: Passed={ue_summary.get('passed', 'N/A')} | Failed={ue_summary.get('failed', 'N/A')}")
+        
+    except requests.exceptions.RequestException as e:
+        print(f"⚠️ Error fetching feature summary: {e}")
 
+# --- In your main __name__ block, call this after downloading the log ---
 if __name__ == "__main__":
     os.system('cls' if os.name == 'nt' else 'clear')
 
@@ -219,8 +224,14 @@ if __name__ == "__main__":
     real_exec_id = wait_for_new_execution(exec_marker)
     poll_current_status(real_exec_id)
 
-    folder = get_artifact_by_execution(real_exec_id)
+    folder = get_artifact_folder(real_exec_id)
     if folder:
         download_and_print_log(folder)
+        fetch_artifact_summary(folder)   # <-- NEW: Fetch and print feature summary
+
+    print("=== ABot Test Automation Finished ===")
+
+
+
 
     print("=== ABot Test Automation Finished ===")
