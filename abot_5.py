@@ -57,25 +57,40 @@ def poll_current_status(exec_id):
     print("⏳ Polling execution status...\n")
     while True:
         try:
-            # High-level execution status
+            # Fetch high-level execution status
             res = requests.get(STATUS_URL, headers=headers, params={"execution": exec_id}, timeout=30)
             res.raise_for_status()
-            data = res.json().get("executing") or res.json().get("execution_status") or []
-            
+            json_data = res.json()
+
+            # ABot may return different structures
+            data = json_data.get("executing") or json_data.get("execution_status") or []
+
+            # If data is a dict, wrap it in a list
+            if isinstance(data, dict):
+                data = [data]
+            # If data is a string, just print and skip parsing
+            if isinstance(data, str):
+                print(f"🟡 Execution status: {data}")
+                time.sleep(10)
+                continue
+
+            # Now safe to iterate
+            passed = sum(1 for step in data if isinstance(step, dict) and step.get("status") == 1)
+            failed = sum(1 for step in data if isinstance(step, dict) and step.get("status") != 1)
+            print(f"🟡 Running... Passed={passed}, Failed={failed}")
+
+            # Stop if nothing is running
             if not data:
-                # Assume execution finished
                 break
 
-            # Print minimal live summary
-            passed = sum(1 for step in data if step.get("status") == 1)
-            failed = sum(1 for step in data if step.get("status") != 1)
-            print(f"🟡 Running... Passed={passed}, Failed={failed}")
             time.sleep(10)
+
         except requests.exceptions.RequestException as e:
             print(f"⚠️ Polling error: {e}, retrying in 10s")
             time.sleep(10)
 
     print("\n✅ Execution completed.")
+
 
 
     # --- High-Level Summary ---
