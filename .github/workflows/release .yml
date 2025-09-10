@@ -1,88 +1,88 @@
-name: Python Code Scan and Docker Build
+# name: Python Code Scan and Docker Build
 
-on:
-  workflow_dispatch:
-    inputs:
-      release_version:
-        description: 'Release version for the Docker image (e.g. v1.0.0)'
-        required: true
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       release_version:
+#         description: 'Release version for the Docker image (e.g. v1.0.0)'
+#         required: true
 
-  push:
-    branches: [ main ]
-  pull_request:
+#   push:
+#     branches: [ main ]
+#   pull_request:
 
-env:
-  SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-  SONAR_HOST_URL: http://192.168.1.37:9000
-  SONAR_PROJECT_KEY: your-project-key
-  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-  GHCR_USERNAME: ${{ secrets.GHUSER }}
-  GHCR_TOKEN: ${{ secrets.GHPASS }}
-  IMAGE_NAME: ghcr.io/${{ github.repository }}
+# env:
+#   SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+#   SONAR_HOST_URL: http://192.168.1.37:9000
+#   SONAR_PROJECT_KEY: your-project-key
+#   SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+#   GHCR_USERNAME: ${{ secrets.GHUSER }}
+#   GHCR_TOKEN: ${{ secrets.GHPASS }}
+#   IMAGE_NAME: ghcr.io/${{ github.repository }}
 
-jobs:
-  scan-and-build:
-    runs-on: ubuntu-latest
+# jobs:
+#   scan-and-build:
+#     runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: 3.11
+#       - name: Set up Python
+#         uses: actions/setup-python@v5
+#         with:
+#           python-version: 3.11
 
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt || true
+#       - name: Install Python dependencies
+#         run: |
+#           python -m pip install --upgrade pip
+#           pip install -r requirements.txt || true
 
-      - name: Run Pylint
-        run: |
-          pip install pylint
-          pylint **/*.py || true
+#       - name: Run Pylint
+#         run: |
+#           pip install pylint
+#           pylint **/*.py || true
 
 
-      - name: Install Snyk CLI
-        run: |
-          curl -Lo snyk https://github.com/snyk/snyk/releases/latest/download/snyk-linux
-          chmod +x snyk
-          sudo mv snyk /usr/local/bin/snyk
+#       - name: Install Snyk CLI
+#         run: |
+#           curl -Lo snyk https://github.com/snyk/snyk/releases/latest/download/snyk-linux
+#           chmod +x snyk
+#           sudo mv snyk /usr/local/bin/snyk
       
 
 
-      - name: Run Snyk scan (Python)
-        run: |
-          echo "🔍 Checking for dependency files..."
-          if ls requirements.txt Pipfile pyproject.toml poetry.lock 2>/dev/null; then
-            echo "✅ Dependency file(s) found. Running full Snyk test..."
-            snyk test --all-projects || echo "⚠️ Snyk test failed, but continuing."
-          else
-            echo "⚠️ No Python dependency files found. Skipping dependency scan."
-            echo "🔍 Running Snyk code scan only..."
-            snyk code test || echo "⚠️ Snyk code scan failed, but continuing."
-          fi
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+#       - name: Run Snyk scan (Python)
+#         run: |
+#           echo "🔍 Checking for dependency files..."
+#           if ls requirements.txt Pipfile pyproject.toml poetry.lock 2>/dev/null; then
+#             echo "✅ Dependency file(s) found. Running full Snyk test..."
+#             snyk test --all-projects || echo "⚠️ Snyk test failed, but continuing."
+#           else
+#             echo "⚠️ No Python dependency files found. Skipping dependency scan."
+#             echo "🔍 Running Snyk code scan only..."
+#             snyk code test || echo "⚠️ Snyk code scan failed, but continuing."
+#           fi
+#         env:
+#           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
 
-      - name: Run SonarQube scan (Python only)
-        uses: SonarSource/sonarqube-scan-action@v1.2
-        with:
-          args: >
-            -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
-            -Dsonar.sources=.
-            -Dsonar.inclusions=**/*.py
-            -Dsonar.host.url=${{ env.SONAR_HOST_URL }}
-            -Dsonar.login=${{ env.SONAR_TOKEN }}
+#       - name: Run SonarQube scan (Python only)
+#         uses: SonarSource/sonarqube-scan-action@v1.2
+#         with:
+#           args: >
+#             -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
+#             -Dsonar.sources=.
+#             -Dsonar.inclusions=**/*.py
+#             -Dsonar.host.url=${{ env.SONAR_HOST_URL }}
+#             -Dsonar.login=${{ env.SONAR_TOKEN }}
 
-      - name: Build Docker image
-        run: |
-          docker build -t $IMAGE_NAME:${{ github.event.inputs.release_version }} .
+#       - name: Build Docker image
+#         run: |
+#           docker build -t $IMAGE_NAME:${{ github.event.inputs.release_version }} .
 
-      - name: Log in to GitHub Container Registry
-        run: echo "${{ env.GHPASS}}" | docker login ghcr.io -u ${{ env.GHUSER }} --password-stdin
+#       - name: Log in to GitHub Container Registry
+#         run: echo "${{ env.GHPASS}}" | docker login ghcr.io -u ${{ env.GHUSER }} --password-stdin
 
-      - name: 🚀 Push Docker image
-        run: docker push $IMAGE_NAME:${{ github.event.inputs.release_version }}
+#       - name: 🚀 Push Docker image
+#         run: docker push $IMAGE_NAME:${{ github.event.inputs.release_version }}
