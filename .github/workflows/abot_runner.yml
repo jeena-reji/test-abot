@@ -1,0 +1,51 @@
+name: ABot Test Execution
+
+on:
+  workflow_dispatch:
+    inputs:
+      feature_tag:
+        description: "Feature tag to execute"
+        required: true
+        default: "5gs-initial-registration-sdcore-0.0.10"
+      abot_user:
+        description: "ABot account email"
+        required: true
+        default: "ajeesh@cazelabs.com"
+      abot_pass:
+        description: "ABot account password"
+        required: true
+        default: "ajeesh1234"
+
+jobs:
+  run-abot:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Run ABot Test
+        env:
+          FEATURE_TAG: ${{ github.event.inputs.feature_tag }}
+          ABOT_USER: ${{ github.event.inputs.abot_user }}
+          ABOT_PASS: ${{ github.event.inputs.abot_pass }}
+        run: |
+          echo "=== ABot Test Automation Started ==="
+          python -u abot_5.py | tee abot_log.log
+          echo "=== ABot Test Automation Finished ==="
+
+      - name: Upload ABot Log
+        uses: actions/upload-artifact@v4
+        with:
+          name: abot-log
+          path: abot_log.log
