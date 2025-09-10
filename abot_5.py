@@ -22,13 +22,13 @@ headers = {"Content-Type": "application/json"}
 
 # ----------------- FUNCTIONS -----------------
 def login():
-    print("🔐 Logging in...")
+    print("Logging in...")
     payload = {"email": USERNAME, "password": PASSWORD, "expires": False}
     res = requests.post(LOGIN_URL, json=payload)
     res.raise_for_status()
     token = res.json()["data"]["token"]
     headers["Authorization"] = f"Bearer {token}"
-    print("✅ Login successful.\n")
+    print("Login successful.\n")
 
 
 def update_config():
@@ -36,27 +36,27 @@ def update_config():
     payload1 = {"update": {"ABOT.SUTVARS.ORAN": "", "ABOT.SUTVARS": "file:IOSMCN/sut-vars/default5G.properties"}}
     params1 = {"filename": "/etc/rebaca-test-suite/config/ajeesh_cazelabs_com/ABotConfig.properties"}
     requests.post(CONFIG_URL, headers=headers, json=payload1, params=params1, timeout=30).raise_for_status()
-    print("✔ Updated sut-vars → ABotConfig.properties")
+    print(" Updated sut-vars → ABotConfig.properties")
 
     payload2 = {"update": {"ABOT.TESTBED": "file:IOSMCN/testbeds/testbed-5G-IOSMCN.properties", "LOAD_SWITCH": "off"}}
     params2 = {"filename": "/etc/rebaca-test-suite/config/ajeesh_cazelabs_com/ABot_System_Configs/ABotConfig_Primary_Configuration.properties"}
     requests.post(CONFIG_URL, headers=headers, json=payload2, params=params2, timeout=30).raise_for_status()
-    print("✔ Updated testbed → ABot_Primary_Configuration.properties\n")
+    print(" Updated testbed → ABot_Primary_Configuration.properties\n")
     time.sleep(2)
 
 
 def execute_feature():
-    print(f"🚀 Executing feature tag: {FEATURE_TAG}")
+    print(f"Executing feature tag: {FEATURE_TAG}")
     payload = {"params": FEATURE_TAG, "build": "default-build"}
     res = requests.post(EXECUTE_URL, headers=headers, json=payload)
     res.raise_for_status()
-    print("▶️ Test started.\n")
+    print("Test started.\n")
     time.sleep(2)
     return FEATURE_TAG
 
 
 def wait_for_new_execution(feature_tag):
-    print(f"⏳ Waiting for ABot to switch to execution {feature_tag}...")
+    print(f" Waiting for ABot to switch to execution {feature_tag}...")
     running_shown = False
     while True:
         res = requests.get(STATUS_URL, headers=headers, timeout=30)
@@ -76,16 +76,16 @@ def wait_for_new_execution(feature_tag):
         if current_name == feature_tag:
             if is_running:
                 if not running_shown:
-                    print(f"🔄 Execution is running...")
+                    print(f"Execution is running...")
                     running_shown = True
             else:
-                print(f"✅ Execution finished: {current_id} (tag={current_name})")
+                print(f"Execution finished: {current_id} (tag={current_name})")
                 return current_id
         time.sleep(5)
 
 
 def poll_current_status(exec_id):
-    print("⏳ Polling execution status...\n", flush=True)
+    print(" Polling execution status...\n", flush=True)
 
     while True:
         try:
@@ -94,7 +94,7 @@ def poll_current_status(exec_id):
             detail_data = res_detail.json().get("executing", {})
 
             if not detail_data:
-                print("🟡 Execution not started yet or still initializing...", flush=True)
+                print("Execution not started yet or still initializing...", flush=True)
                 time.sleep(10)
                 continue
 
@@ -116,14 +116,14 @@ def poll_current_status(exec_id):
                         print(f"    {keyword} {name} → {status.upper()} (Duration: {duration}, Timestamp: {timestamp})", flush=True)
 
             if running_steps == 0:
-                print("\n✅ Execution completed.\n", flush=True)
+                print("\nExecution completed.\n", flush=True)
                 break
             else:
-                print(f"\n🟡 Still running... {running_steps} steps in progress. Waiting 10s...\n", flush=True)
+                print(f"\n Still running... {running_steps} steps in progress. Waiting 10s...\n", flush=True)
                 time.sleep(10)
 
         except requests.exceptions.RequestException as e:
-            print(f"⚠️ Polling error: {e}, retrying in 10s", flush=True)
+            print(f" Polling error: {e}, retrying in 10s", flush=True)
             time.sleep(10)
 
     total_passed, total_failed = 0, 0
@@ -136,7 +136,7 @@ def poll_current_status(exec_id):
                 elif status == "failed":
                     total_failed += 1
 
-    print(f"📊 High-Level Summary: Passed={total_passed}, Failed={total_failed}\n", flush=True)
+    print(f" High-Level Summary: Passed={total_passed}, Failed={total_failed}\n", flush=True)
 
 def wait_for_latest_artifact_by_tag(feature_tag, timeout=300):
     """Wait until the latest ABot artifact folder for a feature tag is created."""
@@ -151,7 +151,7 @@ def wait_for_latest_artifact_by_tag(feature_tag, timeout=300):
             folder_name = latest_data.get("latest_artifact_timestamp")
             if folder_name and feature_tag in folder_name:
                 if folder_name != latest_folder:
-                    print(f"✅ Found latest artifact folder: {folder_name}")
+                    print(f" Found latest artifact folder: {folder_name}")
                     latest_folder = folder_name
                     # optional: wait 2-3s to ensure summary is ready
                 return latest_folder
@@ -159,7 +159,7 @@ def wait_for_latest_artifact_by_tag(feature_tag, timeout=300):
             pass
         time.sleep(5)
 
-    print(f"⚠️ Artifact for tag '{feature_tag}' not found in {timeout}s")
+    print(f" Artifact for tag '{feature_tag}' not found in {timeout}s")
     return None
 
 
@@ -190,27 +190,27 @@ def fetch_feature_details(folder, feature_id, feature_name):
         res.raise_for_status()
         print(json.dumps(res.json(), indent=2))
     except requests.exceptions.RequestException as e:
-        print(f"⚠️ Error fetching feature details for {feature_id}: {e}")
+        print(f" Error fetching feature details for {feature_id}: {e}")
 
 
 def fetch_all_feature_details(folder, timeout=60):
     """
     Automatically fetch all feature files from the artifact and print detailed results.
     """
-    print(f"\n📋 Fetching all feature details for artifact: {folder}\n")
+    print(f"\n Fetching all feature details for artifact: {folder}\n")
     page = 1
     limit = 9999
     params = {"foldername": folder, "page": page, "limit": limit}
 
     try:
-        # 1️⃣ Get the list of features in this artifact
+        #  Get the list of features in this artifact
         res = requests.get(f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureSummary",
                            headers=headers, params=params, timeout=30)
         res.raise_for_status()
         data = res.json()
 
         if data.get("status", "").lower() != "ok":
-            print(f"⚠️ Failed to fetch feature summary: {data.get('message')}")
+            print(f" Failed to fetch feature summary: {data.get('message')}")
             return
 
         summary_result = data.get("feature_summary", {}).get("result", [])
@@ -229,7 +229,7 @@ def fetch_all_feature_details(folder, timeout=60):
                     feature_files.append((feature_id, feature_name))
 
         if not feature_files:
-            print("⚠️ No feature files found in artifact.")
+            print(" No feature files found in artifact.")
             return
 
         for feature_id, feature_name in feature_files:
@@ -237,7 +237,7 @@ def fetch_all_feature_details(folder, timeout=60):
             fetch_feature_details(folder, feature_id, feature_name)
 
     except requests.exceptions.RequestException as e:
-        print(f"⚠️ Error fetching feature list: {e}")
+        print(f" Error fetching feature list: {e}")
 
 
 
