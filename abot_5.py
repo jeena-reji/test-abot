@@ -14,8 +14,8 @@ LATEST_ARTIFACT_URL = f"{ABOT_URL}/abot/api/v5/latest_artifact_name"
 EXEC_FEATURE_DETAILS = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureDetails"
 EXEC_FAILURE_DETAILS = f"{ABOT_URL}/abot/api/v5/artifacts/execFailureDetails"
 
-USERNAME = os.getenv("ABOT_USERNAME")
-PASSWORD = os.getenv("ABOT_PASSWORD")
+USERNAME = os.getenv("ABOT_USER")
+PASSWORD = os.getenv("ABOT_PASS")
 FEATURE_TAG = os.getenv("FEATURE_TAG", "5gs-initial-registration-sdcore-0.0.10")
 
 headers = {"Content-Type": "application/json"}
