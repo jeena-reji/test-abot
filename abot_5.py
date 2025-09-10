@@ -8,12 +8,14 @@ CONFIG_URL = f"{ABOT_URL}/abot/api/v5/update_config_properties"
 EXECUTE_URL = f"{ABOT_URL}/abot/api/v5/feature_files/execute"
 STATUS_URL = f"{ABOT_URL}/abot/api/v5/execution_status"
 DETAIL_STATUS_URL = f"{ABOT_URL}/abot/api/v5/detail_execution_status"
+ARTIFACT_BY_EXEC_URL = f"{ABOT_URL}/abot/api/v5/artifacts/by_execution"
+LOG_URL = f"{ABOT_URL}/abot/api/v5/artifacts/logs"
 LATEST_ARTIFACT_URL = f"{ABOT_URL}/abot/api/v5/latest_artifact_name"
 EXEC_FEATURE_DETAILS = f"{ABOT_URL}/abot/api/v5/artifacts/execFeatureDetails"
+EXEC_FAILURE_DETAILS = f"{ABOT_URL}/abot/api/v5/artifacts/execFailureDetails"
 
-# ----------------- INPUTS -----------------
-USERNAME = os.getenv("ABOT_USER") or "ajeesh@cazelabs.com"
-PASSWORD = os.getenv("ABOT_PASS") or "ajeesh1234"
+USERNAME = os.getenv("ABOT_USERNAME")
+PASSWORD = os.getenv("ABOT_PASSWORD")
 FEATURE_TAG = os.getenv("FEATURE_TAG", "5gs-initial-registration-sdcore-0.0.10")
 
 headers = {"Content-Type": "application/json"}
@@ -26,21 +28,8 @@ def login():
     res.raise_for_status()
     token = res.json()["data"]["token"]
     headers["Authorization"] = f"Bearer {token}"
-    print(f"✅ Login successful for {USERNAME}\n")
+    print("✅ Login successful.\n")
 
-def wait_if_other_execution():
-    """Check if another execution is running and wait until it's done."""
-    while True:
-        res = requests.get(STATUS_URL, headers=headers, timeout=30)
-        res.raise_for_status()
-        executing_list = res.json().get("executing", {}).get("executing", [])
-        if executing_list:
-            running_names = [e.get("name", "") for e in executing_list if e.get("is_executing")]
-            if running_names:
-                print(f"🟡 Another execution is running: {', '.join(running_names)}. Waiting 10s...")
-                time.sleep(10)
-                continue
-        break
 
 def update_config():
     print("=== Configuration Phase ===")
