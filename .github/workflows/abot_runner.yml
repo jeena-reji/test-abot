@@ -41,7 +41,7 @@ jobs:
           ABOT_PASS: ${{ github.event.inputs.abot_pass }}
         run: |
           echo "=== ABot Test Automation Started ==="
-          python -u abot_5.py | tee abot_log.log
+          python -u abot_50.py | tee abot_log.log
           echo "=== ABot Test Automation Finished ==="
 
       - name: Upload ABot Log
