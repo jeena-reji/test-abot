@@ -1,6 +1,13 @@
 import requests, time, os, json
 from urllib.parse import quote
 
+# ----------------- COLORS -----------------
+class Colors:
+    GREEN = "\033[92m"   # Bright green
+    RED = "\033[91m"     # Bright red
+    YELLOW = "\033[93m"  # Yellow
+    RESET = "\033[0m"    # Reset to default color
+
 # ----------------- CONFIG -----------------
 ABOT_URL = "http://10.176.27.73/abotrest"
 LOGIN_URL = f"{ABOT_URL}/abot/api/v5/login"
@@ -20,11 +27,6 @@ FEATURE_TAG = os.getenv("FEATURE_TAG", "5gs-initial-registration-sdcore-0.0.10")
 
 headers = {"Content-Type": "application/json"}
 
-# ----------------- COLORS -----------------
-GREEN = "\033[92m"
-RED = "\033[91m"
-YELLOW = "\033[93m"
-RESET = "\033[0m"
 
 # ----------------- FUNCTIONS -----------------
 def login():
@@ -34,7 +36,7 @@ def login():
     res.raise_for_status()
     token = res.json()["data"]["token"]
     headers["Authorization"] = f"Bearer {token}"
-    print(f"{GREEN}Login successful.{RESET}\n")
+    print("Login successful.\n")
 
 
 def update_config():
@@ -68,30 +70,30 @@ def wait_for_new_execution(feature_tag):
         res = requests.get(STATUS_URL, headers=headers, timeout=30)
         res.raise_for_status()
         data = res.json()
-        
+
         exec_list = data.get("executing", {}).get("executing", [])
         if not exec_list:
             time.sleep(5)
             continue
-        
+
         current_exec = exec_list[0]
         current_name = current_exec.get("name", "").lstrip("@")
         current_id = current_exec.get("id") or current_name
         is_running = current_exec.get("is_executing", False)
-        
+
         if current_name == feature_tag:
             if is_running:
                 if not running_shown:
-                    print(f"{YELLOW}Execution is running...{RESET}")
+                    print(f"Execution is running...")
                     running_shown = True
             else:
-                print(f"{GREEN}Execution finished:{RESET} {current_id} (tag={current_name})")
+                print(f"Execution finished: {current_id} (tag={current_name})")
                 return current_id
         time.sleep(5)
 
 
 def poll_current_status(exec_id):
-    print(" Polling execution status...\n", flush=True)
+    print("Polling execution status...\n", flush=True)
 
     while True:
         try:
@@ -116,41 +118,59 @@ def poll_current_status(exec_id):
                         duration = step.get("duration", "N/A")
                         timestamp = step.get("timestamp", "N/A")
 
-                        # ✅ Color-coded status (no emojis)
+                        # Color coding for status
                         if status == "passed":
-                            color_status = f"{GREEN}PASSED{RESET}"
+                            color = Colors.GREEN
                         elif status == "failed":
-                            color_status = f"{RED}FAILED{RESET}"
+                            color = Colors.RED
                         elif status == "running":
-                            color_status = f"{YELLOW}RUNNING{RESET}"
-                            running_steps += 1
+                            color = Colors.YELLOW
                         else:
-                            color_status = status.upper()
+                            color = Colors.RESET
 
-                        print(f"    {keyword} {name} → {color_status} (Duration: {duration}, Timestamp: {timestamp})", flush=True)
+                        if status == "running":
+                            running_steps += 1
+
+                        # Print with colored status
+                        print(f"    {keyword} {name} → {color}{status.upper()}{Colors.RESET} (Duration: {duration}, Timestamp: {timestamp})", flush=True)
 
             if running_steps == 0:
-                print(f"\n{GREEN}Execution completed.{RESET}\n", flush=True)
+                print("\nExecution completed.\n", flush=True)
                 break
             else:
-                print(f"\n{YELLOW}Still running... {running_steps} steps in progress. Waiting 10s...{RESET}\n", flush=True)
+                print(f"\n Still running... {running_steps} steps in progress. Waiting 10s...\n", flush=True)
                 time.sleep(10)
 
         except requests.exceptions.RequestException as e:
-            print(f" Polling error: {e}, retrying in 10s", flush=True)
+            print(f"Polling error: {e}, retrying in 10s", flush=True)
             time.sleep(10)
 
-    total_passed, total_failed = 0, 0
+    # -----------------------
+    # Summary calculation
+    # -----------------------
+    total_steps_passed = total_steps_failed = total_steps_skipped = 0
+    total_scenarios_passed = total_scenarios_failed = 0
+
     for feature, scenarios in detail_data.items():
         for scenario_name, steps in scenarios.items():
+            scenario_failed = False
             for step in steps:
-                status = str(step.get("status", "unknown")).lower()
+                status = step.get("status", "").lower()
                 if status == "passed":
-                    total_passed += 1
+                    total_steps_passed += 1
                 elif status == "failed":
-                    total_failed += 1
+                    total_steps_failed += 1
+                    scenario_failed = True
+                elif status == "skipped":
+                    total_steps_skipped += 1
 
-    print(f"\n{GREEN}High-Level Summary:{RESET} Passed={GREEN}{total_passed}{RESET}, Failed={RED}{total_failed}{RESET}\n", flush=True)
+            if scenario_failed:
+                total_scenarios_failed += 1
+            else:
+                total_scenarios_passed += 1
+
+    print(f"\nHigh-Level Summary (Steps): Passed={total_steps_passed}, Failed={total_steps_failed}, Skipped={total_steps_skipped}")
+    print(f"High-Level Summary (Scenarios): Passed={total_scenarios_passed}, Failed={total_scenarios_failed}\n", flush=True)
 
 
 def wait_for_latest_artifact_by_tag(feature_tag, timeout=300):
@@ -262,4 +282,4 @@ if __name__ == "__main__":
         download_and_print_log(folder)
         fetch_all_feature_details(folder)
 
-    print(f"{GREEN}=== ABot Test Automation Finished ==={RESET}")
+    print("=== ABot Test Automation Finished ===")
