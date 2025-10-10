@@ -19,7 +19,7 @@ jobs:
 
       - name: List and delete failed runs
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Uses default token with repo scopes
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}  # Uses default token with repo scopes
         run: |
           echo "Fetching list of failed workflow runs..."
           
