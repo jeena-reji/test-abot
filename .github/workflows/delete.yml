@@ -39,23 +39,39 @@ jobs:
           
           # Delete each run using GitHub API (non-interactive)
           DELETED_COUNT=0
+          TOTAL_COUNT=$(echo $RUN_IDS | wc -w)
           for RUN_ID in $RUN_IDS; do
             echo "Deleting run ID: $RUN_ID"
-            RESPONSE=$(curl -s -w "%{http_code}" -X DELETE \
+            
+            # Use curl with output to temp file for body, and capture HTTP code
+            RESPONSE_BODY=$(mktemp)
+            HTTP_CODE=$(curl -s -w "%{http_code}" -o "$RESPONSE_BODY" -X DELETE \
               -H "Authorization: token $GITHUB_TOKEN" \
               -H "Accept: application/vnd.github.v3+json" \
-              "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID")
+              "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID" \
+              -f)  # -f makes curl exit non-zero on HTTP >=400
             
-            HTTP_CODE=${RESPONSE: -3}
-            if [ "$HTTP_CODE" = "204" ]; then
+            CURL_EXIT=$?
+            
+            if [ $CURL_EXIT -eq 0 ] && [ "$HTTP_CODE" = "204" ]; then
               echo "Successfully deleted run $RUN_ID"
               ((DELETED_COUNT++))
             else
-              echo "Failed to delete run $RUN_ID (HTTP $HTTP_CODE). Response body: ${RESPONSE%???}"
+              # Read body only if file exists and has content
+              BODY=$(cat "$RESPONSE_BODY" 2>/dev/null || echo "No response body")
+              rm -f "$RESPONSE_BODY"
+              if [ $CURL_EXIT -eq 0 ]; then
+                echo "Failed to delete run $RUN_ID (HTTP $HTTP_CODE): $BODY"
+              else
+                echo "Curl failed for run $RUN_ID (exit $CURL_EXIT). HTTP code: $HTTP_CODE. Body: $BODY"
+              fi
             fi
+            rm -f "$RESPONSE_BODY"  # Clean up temp file
             
             # Small delay to avoid rate limits
             sleep 1
           done
           
-          echo "Cleanup complete! Successfully deleted $DELETED_COUNT out of $(echo $RUN_IDS | wc -w) runs."
+          echo "Cleanup complete! Successfully deleted $DELETED_COUNT out of $TOTAL_COUNT runs."
+          # Always exit 0 to mark step as successful (partial deletions are okay)
+          exit 0
