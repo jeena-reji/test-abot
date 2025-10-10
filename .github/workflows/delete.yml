@@ -16,14 +16,11 @@ jobs:
 
       - name: List and delete failed runs
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}  # Use default GitHub-provided token (has actions:write)
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}  # Default GitHub token (actions:write scope)
         run: |
-          set -euo pipefail  # Strict mode: exit on any error, but we'll override for curl
-          
           echo "Fetching list of failed workflow runs..."
           
           # List all failed runs and extract their database IDs (run IDs)
-          # --limit 1000 is a safe high limit; gh handles pagination automatically for list
           RUN_IDS=$(gh run list \
             --repo ${{ github.repository }} \
             --status failure \
@@ -36,59 +33,60 @@ jobs:
             exit 0
           fi
           
-          echo "Found $(echo $RUN_IDS | wc -w) failed run(s) to delete."
-          echo "Sample Run IDs (first 5): $(echo $RUN_IDS | cut -d' ' -f1-5)"  # Truncate long list for readability
+          TOTAL_COUNT=$(echo "$RUN_IDS" | wc -w)
+          echo "Found $TOTAL_COUNT failed run(s) to delete."
+          echo "Sample Run IDs (first 5): $(echo "$RUN_IDS" | cut -d' ' -f1-5)"  # Truncated for readability
           
-          # Delete each run using GitHub API (non-interactive)
+          # Initialize counters
           DELETED_COUNT=0
-          TOTAL_COUNT=$(echo $RUN_IDS | wc -w)
           FAILED_COUNT=0
+          
+          # Delete each run using GitHub API (non-interactive, continues on errors)
           for RUN_ID in $RUN_IDS; do
             echo "Attempting to delete run ID: $RUN_ID"
             
             # Temp file for response body
             RESPONSE_BODY=$(mktemp)
             
-            # Curl WITHOUT -f: Always exits 0, we check HTTP_CODE manually
-            # -w outputs HTTP code to stdout; -o puts body in file
+            # Curl WITHOUT -f: Always succeeds (exit 0), we check HTTP_CODE
             HTTP_CODE=$(curl -s -w "%{http_code}" -o "$RESPONSE_BODY" -X DELETE \
               -H "Authorization: token $GITHUB_TOKEN" \
               -H "Accept: application/vnd.github.v3+json" \
               "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID")
             
             CURL_EXIT=$?
-            rm -f "$RESPONSE_BODY"  # Clean up immediately after curl
             
-            # Read body only on potential failure (HTTP !=204 or curl error)
+            # Capture body BEFORE cleanup (empty on 204 success)
+            BODY=$(cat "$RESPONSE_BODY" 2>/dev/null || echo "")
+            rm -f "$RESPONSE_BODY"
+            
             if [ $CURL_EXIT -ne 0 ]; then
-              echo "Curl failed for run $RUN_ID (exit code $CURL_EXIT) - skipping."
+              echo "  -> Curl failed for run $RUN_ID (exit $CURL_EXIT) - skipping."
               ((FAILED_COUNT++))
+              sleep 1
               continue
             fi
             
-            BODY_FILE=$(mktemp)  # Temp for body if needed
-            if [ ! -s "$BODY_FILE" ]; then  # If body file empty, no error details
-              BODY="No response body available"
-            else
-              BODY=$(cat "$BODY_FILE" 2>/dev/null | jq -r '.message // empty' 2>/dev/null || cat "$BODY_FILE" 2>/dev/null || echo "Unable to parse body")
-            fi
-            rm -f "$BODY_FILE"
-            
             if [ "$HTTP_CODE" = "204" ]; then
-              echo "Successfully deleted run $RUN_ID"
+              echo "  -> Successfully deleted run $RUN_ID"
               ((DELETED_COUNT++))
             else
-              echo "Failed to delete run $RUN_ID (HTTP $HTTP_CODE): $BODY"
+              # Parse body for error details (safe: jq on empty is fine)
+              PARSED_BODY=$(echo "$BODY" | jq -r '.message // empty' 2>/dev/null || echo "$BODY")
+              if [ -z "$PARSED_BODY" ]; then
+                PARSED_BODY="Unknown error (empty response)"
+              fi
+              echo "  -> Failed to delete run $RUN_ID (HTTP $HTTP_CODE): $PARSED_BODY"
               ((FAILED_COUNT++))
             fi
             
-            # Small delay to avoid rate limits
+            # Delay to avoid rate limits
             sleep 1
           done
           
           echo "Cleanup complete!"
           echo "Summary: Successfully deleted $DELETED_COUNT out of $TOTAL_COUNT runs."
-          echo "Failures (skipped): $FAILED_COUNT (e.g., already deleted or permission issues - this is normal)."
+          echo "Skipped failures: $FAILED_COUNT (normal for already-deleted runs or permissions)."
           
-          # Always exit 0: Partial success is still a win
+          # Always succeed: Partial cleanup is progress
           exit 0
