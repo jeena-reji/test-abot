@@ -1,0 +1,53 @@
+name: Cleanup Failed Workflow Runs
+
+on:
+  workflow_dispatch:  # Manual trigger - run it from the GitHub UI when you want
+
+permissions:
+  actions: write  # Required to delete workflow runs via API
+  contents: read  # Optional, for any repo access
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (optional, for context)
+        uses: actions/checkout@v4
+
+      - name: Set up GitHub CLI
+        uses: cli/gh@v0  # Installs or uses pre-installed gh CLI
+
+      - name: List and delete failed runs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Uses default token with repo scopes
+        run: |
+          echo "Fetching list of failed workflow runs..."
+          
+          # List all failed runs and extract their database IDs (run IDs)
+          # --limit 1000 is a safe high limit; gh handles pagination automatically for list
+          RUN_IDS=$(gh run list \
+            --repo ${{ github.repository }} \
+            --status failure \
+            --json databaseId \
+            --limit 1000 \
+            -q '.[].databaseId' 2>/dev/null || echo "")
+          
+          if [ -z "$RUN_IDS" ]; then
+            echo "No failed runs found to delete."
+            exit 0
+          fi
+          
+          echo "Found $(echo $RUN_IDS | wc -w) failed run(s) to delete."
+          echo "Run IDs: $RUN_IDS"
+          
+          # Delete each run
+          for RUN_ID in $RUN_IDS; do
+            echo "Deleting run ID: $RUN_ID"
+            if gh run delete $RUN_ID --repo ${{ github.repository }} --yes; then
+              echo "Successfully deleted run $RUN_ID"
+            else
+              echo "Failed to delete run $RUN_ID (skipping)"
+            fi
+          done
+          
+          echo "Cleanup complete!"
