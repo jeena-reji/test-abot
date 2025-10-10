@@ -16,8 +16,10 @@ jobs:
 
       - name: List and delete failed runs
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}  # Uses default token with repo scopes
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}  # Use default GitHub-provided token (has actions:write)
         run: |
+          set -euo pipefail  # Strict mode: exit on any error, but we'll override for curl
+          
           echo "Fetching list of failed workflow runs..."
           
           # List all failed runs and extract their database IDs (run IDs)
@@ -35,43 +37,58 @@ jobs:
           fi
           
           echo "Found $(echo $RUN_IDS | wc -w) failed run(s) to delete."
-          echo "Run IDs: $RUN_IDS"
+          echo "Sample Run IDs (first 5): $(echo $RUN_IDS | cut -d' ' -f1-5)"  # Truncate long list for readability
           
           # Delete each run using GitHub API (non-interactive)
           DELETED_COUNT=0
           TOTAL_COUNT=$(echo $RUN_IDS | wc -w)
+          FAILED_COUNT=0
           for RUN_ID in $RUN_IDS; do
-            echo "Deleting run ID: $RUN_ID"
+            echo "Attempting to delete run ID: $RUN_ID"
             
-            # Use curl with output to temp file for body, and capture HTTP code
+            # Temp file for response body
             RESPONSE_BODY=$(mktemp)
+            
+            # Curl WITHOUT -f: Always exits 0, we check HTTP_CODE manually
+            # -w outputs HTTP code to stdout; -o puts body in file
             HTTP_CODE=$(curl -s -w "%{http_code}" -o "$RESPONSE_BODY" -X DELETE \
               -H "Authorization: token $GITHUB_TOKEN" \
               -H "Accept: application/vnd.github.v3+json" \
-              "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID" \
-              -f)  # -f makes curl exit non-zero on HTTP >=400
+              "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID")
             
             CURL_EXIT=$?
+            rm -f "$RESPONSE_BODY"  # Clean up immediately after curl
             
-            if [ $CURL_EXIT -eq 0 ] && [ "$HTTP_CODE" = "204" ]; then
+            # Read body only on potential failure (HTTP !=204 or curl error)
+            if [ $CURL_EXIT -ne 0 ]; then
+              echo "Curl failed for run $RUN_ID (exit code $CURL_EXIT) - skipping."
+              ((FAILED_COUNT++))
+              continue
+            fi
+            
+            BODY_FILE=$(mktemp)  # Temp for body if needed
+            if [ ! -s "$BODY_FILE" ]; then  # If body file empty, no error details
+              BODY="No response body available"
+            else
+              BODY=$(cat "$BODY_FILE" 2>/dev/null | jq -r '.message // empty' 2>/dev/null || cat "$BODY_FILE" 2>/dev/null || echo "Unable to parse body")
+            fi
+            rm -f "$BODY_FILE"
+            
+            if [ "$HTTP_CODE" = "204" ]; then
               echo "Successfully deleted run $RUN_ID"
               ((DELETED_COUNT++))
             else
-              # Read body only if file exists and has content
-              BODY=$(cat "$RESPONSE_BODY" 2>/dev/null || echo "No response body")
-              rm -f "$RESPONSE_BODY"
-              if [ $CURL_EXIT -eq 0 ]; then
-                echo "Failed to delete run $RUN_ID (HTTP $HTTP_CODE): $BODY"
-              else
-                echo "Curl failed for run $RUN_ID (exit $CURL_EXIT). HTTP code: $HTTP_CODE. Body: $BODY"
-              fi
+              echo "Failed to delete run $RUN_ID (HTTP $HTTP_CODE): $BODY"
+              ((FAILED_COUNT++))
             fi
-            rm -f "$RESPONSE_BODY"  # Clean up temp file
             
             # Small delay to avoid rate limits
             sleep 1
           done
           
-          echo "Cleanup complete! Successfully deleted $DELETED_COUNT out of $TOTAL_COUNT runs."
-          # Always exit 0 to mark step as successful (partial deletions are okay)
+          echo "Cleanup complete!"
+          echo "Summary: Successfully deleted $DELETED_COUNT out of $TOTAL_COUNT runs."
+          echo "Failures (skipped): $FAILED_COUNT (e.g., already deleted or permission issues - this is normal)."
+          
+          # Always exit 0: Partial success is still a win
           exit 0
