@@ -14,9 +14,6 @@ jobs:
       - name: Checkout repository (optional, for context)
         uses: actions/checkout@v4
 
-      - name: Set up GitHub CLI
-        uses: cli/gh@v0  # Installs or uses pre-installed gh CLI
-
       - name: List and delete failed runs
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}  # Uses default token with repo scopes
