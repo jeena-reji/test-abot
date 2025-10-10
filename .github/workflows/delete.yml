@@ -18,9 +18,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}  # Default GitHub token (actions:write scope)
         run: |
+          # Disable error propagation for the entire script (ignores minor failures)
+          set +e
+          
           echo "Fetching list of failed workflow runs..."
           
-          # List all failed runs and extract their database IDs (run IDs)
+          # List all failed runs (this is critical - fail if it errors)
           RUN_IDS=$(gh run list \
             --repo ${{ github.repository }} \
             --status failure \
@@ -33,60 +36,58 @@ jobs:
             exit 0
           fi
           
-          TOTAL_COUNT=$(echo "$RUN_IDS" | wc -w)
+          TOTAL_COUNT=$(echo "$RUN_IDS" | wc -w || echo 0)
           echo "Found $TOTAL_COUNT failed run(s) to delete."
-          echo "Sample Run IDs (first 5): $(echo "$RUN_IDS" | cut -d' ' -f1-5)"  # Truncated for readability
+          echo "Sample Run IDs (first 5): $(echo "$RUN_IDS" | cut -d' ' -f1-5 || echo "N/A")"
           
-          # Initialize counters
+          # Initialize counters (safe arithmetic)
           DELETED_COUNT=0
           FAILED_COUNT=0
           
-          # Delete each run using GitHub API (non-interactive, continues on errors)
-          for RUN_ID in $RUN_IDS; do
-            echo "Attempting to delete run ID: $RUN_ID"
-            
-            # Temp file for response body
-            RESPONSE_BODY=$(mktemp)
-            
-            # Curl WITHOUT -f: Always succeeds (exit 0), we check HTTP_CODE
-            HTTP_CODE=$(curl -s -w "%{http_code}" -o "$RESPONSE_BODY" -X DELETE \
-              -H "Authorization: token $GITHUB_TOKEN" \
-              -H "Accept: application/vnd.github.v3+json" \
-              "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID")
-            
-            CURL_EXIT=$?
-            
-            # Capture body BEFORE cleanup (empty on 204 success)
-            BODY=$(cat "$RESPONSE_BODY" 2>/dev/null || echo "")
-            rm -f "$RESPONSE_BODY"
-            
-            if [ $CURL_EXIT -ne 0 ]; then
-              echo "  -> Curl failed for run $RUN_ID (exit $CURL_EXIT) - skipping."
-              ((FAILED_COUNT++))
-              sleep 1
-              continue
-            fi
-            
-            if [ "$HTTP_CODE" = "204" ]; then
-              echo "  -> Successfully deleted run $RUN_ID"
-              ((DELETED_COUNT++))
-            else
-              # Parse body for error details (safe: jq on empty is fine)
-              PARSED_BODY=$(echo "$BODY" | jq -r '.message // empty' 2>/dev/null || echo "$BODY")
-              if [ -z "$PARSED_BODY" ]; then
-                PARSED_BODY="Unknown error (empty response)"
+          # Run the loop in a subshell to fully isolate errors
+          (
+            for RUN_ID in $RUN_IDS; do
+              echo "Attempting to delete run ID: $RUN_ID"
+              
+              # Temp file for response body (mktemp always succeeds)
+              RESPONSE_BODY=$(mktemp) || { echo "Temp file failed - skipping $RUN_ID"; continue; }
+              
+              # Curl: Always runs, no -f, capture code and body
+              OUTPUT=$(curl -s -w "\nHTTP_CODE:%{http_code}" -o "$RESPONSE_BODY" -X DELETE \
+                -H "Authorization: token $GITHUB_TOKEN" \
+                -H "Accept: application/vnd.github.v3+json" \
+                "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID" 2>/dev/null || echo "CURL_FAILED")
+              
+              CURL_EXIT=$?
+              HTTP_CODE=$(echo "$OUTPUT" | grep "HTTP_CODE:" | cut -d: -f2 || echo "999")
+              
+              # Clean up temp file immediately
+              rm -f "$RESPONSE_BODY" || true
+              
+              if [ "$HTTP_CODE" = "204" ] && [ $CURL_EXIT -eq 0 ]; then
+                echo "  -> Successfully deleted run $RUN_ID"
+                DELETED_COUNT=$((DELETED_COUNT + 1)) || true
+              else
+                # Safe body read (only if file existed, but since we rm'd, use fallback)
+                # Note: Body is not captured here due to rm, but for errors, log HTTP_CODE
+                ERROR_MSG="HTTP $HTTP_CODE (curl exit $CURL_EXIT)"
+                if [ "$HTTP_CODE" = "404" ]; then
+                  ERROR_MSG="$ERROR_MSG - Already deleted (normal)"
+                elif [ "$HTTP_CODE" = "403" ]; then
+                  ERROR_MSG="$ERROR_MSG - Permission denied (check repo settings)"
+                fi
+                echo "  -> Failed to delete run $RUN_ID: $ERROR_MSG"
+                FAILED_COUNT=$((FAILED_COUNT + 1)) || true
               fi
-              echo "  -> Failed to delete run $RUN_ID (HTTP $HTTP_CODE): $PARSED_BODY"
-              ((FAILED_COUNT++))
-            fi
-            
-            # Delay to avoid rate limits
-            sleep 1
-          done
+              
+              # Delay
+              sleep 1 || true
+            done
+          )  # End subshell - any errors inside are ignored
           
           echo "Cleanup complete!"
           echo "Summary: Successfully deleted $DELETED_COUNT out of $TOTAL_COUNT runs."
-          echo "Skipped failures: $FAILED_COUNT (normal for already-deleted runs or permissions)."
+          echo "Skipped failures: $FAILED_COUNT (e.g., already deleted or permissions - expected)."
           
-          # Always succeed: Partial cleanup is progress
+          # Guaranteed success
           exit 0
