@@ -1,0 +1,164 @@
+name: Cleanup Workflow Runs (Flexible + All Options)
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_status:
+        description: 'Which runs do you want to delete?'
+        required: true
+        type: choice
+        options:
+          - failure
+          - cancelled
+          - both
+          - all
+        default: failure
+      page_mode:
+        description: 'Choose "range" to specify pages or "all" to delete all available pages'
+        required: true
+        type: choice
+        options:
+          - range
+          - all
+        default: range
+      start_page:
+        description: 'Start page number (used only if page_mode = range)'
+        required: false
+        default: '1'
+      end_page:
+        description: 'End page number (used only if page_mode = range)'
+        required: false
+        default: '1'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (optional)
+        uses: actions/checkout@v4
+
+      - name: Cleanup Workflow Runs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_STATUS: ${{ github.event.inputs.run_status }}
+          PAGE_MODE: ${{ github.event.inputs.page_mode }}
+          START_PAGE: ${{ github.event.inputs.start_page }}
+          END_PAGE: ${{ github.event.inputs.end_page }}
+          PAGE_SIZE: 10
+        run: |
+          set +e
+          echo "------------------------------------------"
+          echo "Repository: $REPO"
+          echo "Run type: $RUN_STATUS"
+          echo "Page mode: $PAGE_MODE"
+          echo "------------------------------------------"
+
+          # Determine which statuses to include
+          STATUSES=()
+          if [ "$RUN_STATUS" = "failure" ]; then
+            STATUSES=("failure")
+          elif [ "$RUN_STATUS" = "cancelled" ]; then
+            STATUSES=("cancelled")
+          elif [ "$RUN_STATUS" = "both" ]; then
+            STATUSES=("failure" "cancelled")
+          else
+            # 'all' includes all statuses GitHub supports
+            STATUSES=("failure" "cancelled" "success" "in_progress" "queued")
+          fi
+
+          DELETED=0
+          FAILED=0
+          TOTAL=0
+
+          # Function to detect total pages dynamically
+          get_total_pages() {
+            STATUS="$1"
+            PAGE=1
+            while true; do
+              RUN_IDS=$(gh run list \
+                --repo "$REPO" \
+                --status "$STATUS" \
+                --json databaseId \
+                --limit "$PAGE_SIZE" \
+                --page "$PAGE" \
+                -q '.[].databaseId' 2>/dev/null || echo "")
+              if [ -z "$RUN_IDS" ]; then
+                break
+              fi
+              PAGE=$((PAGE + 1))
+            done
+            echo $((PAGE - 1))
+          }
+
+          # Auto-detect all pages
+          if [ "$PAGE_MODE" = "all" ]; then
+            MAX_PAGE=0
+            for STATUS in "${STATUSES[@]}"; do
+              PAGES=$(get_total_pages "$STATUS")
+              if [ "$PAGES" -gt "$MAX_PAGE" ]; then
+                MAX_PAGE=$PAGES
+              fi
+            done
+            START_PAGE=1
+            END_PAGE=$MAX_PAGE
+            echo "Auto-detected total pages: $END_PAGE"
+          fi
+
+          echo "Processing pages $START_PAGE to $END_PAGE (page size: $PAGE_SIZE)"
+          echo "------------------------------------------"
+
+          # Loop through pages and statuses
+          for (( PAGE=$START_PAGE; PAGE<=$END_PAGE; PAGE++ )); do
+            echo ""
+            echo "🔹 Processing page $PAGE..."
+            for STATUS in "${STATUSES[@]}"; do
+              echo "→ Fetching runs with status: $STATUS"
+              RUN_IDS=$(gh run list \
+                --repo "$REPO" \
+                --status "$STATUS" \
+                --json databaseId \
+                --limit "$PAGE_SIZE" \
+                --page "$PAGE" \
+                -q '.[].databaseId' 2>/dev/null || echo "")
+
+              if [ -z "$RUN_IDS" ]; then
+                echo "  No runs found for $STATUS on page $PAGE."
+                continue
+              fi
+
+              COUNT=$(echo "$RUN_IDS" | wc -w)
+              TOTAL=$((TOTAL + COUNT))
+              echo "  Found $COUNT run(s) on page $PAGE."
+
+              for RUN_ID in $RUN_IDS; do
+                echo "Deleting run ID: $RUN_ID ..."
+                OUTPUT=$(curl -s -w "\nHTTP_CODE:%{http_code}" -o /tmp/body.txt -X DELETE \
+                  -H "Authorization: token $GITHUB_TOKEN" \
+                  -H "Accept: application/vnd.github.v3+json" \
+                  "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID" 2>/dev/null)
+
+                HTTP_CODE=$(echo "$OUTPUT" | grep "HTTP_CODE:" | cut -d: -f2)
+                if [ "$HTTP_CODE" = "204" ]; then
+                  echo "  ✔ Successfully deleted run $RUN_ID"
+                  DELETED=$((DELETED + 1))
+                else
+                  echo "  ✖ Failed to delete run $RUN_ID (HTTP $HTTP_CODE)"
+                  FAILED=$((FAILED + 1))
+                fi
+                sleep 1
+              done
+            done
+          done
+
+          echo ""
+          echo "------------------------------------------"
+          echo "Cleanup Summary:"
+          echo "  Total runs found: $TOTAL"
+          echo "  Successfully deleted: $DELETED"
+          echo "  Failed deletions: $FAILED"
+          echo "Done ✅"
