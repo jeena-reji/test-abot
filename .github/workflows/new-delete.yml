@@ -1,16 +1,26 @@
-name: Cleanup Workflow Runs (Flexible with All Option)
+name: Cleanup Workflow Runs (Flexible + All Options)
 
 on:
   workflow_dispatch:
     inputs:
       run_status:
-        description: 'Which runs to delete? (failure, cancelled, both)'
+        description: 'Which runs do you want to delete?'
         required: true
-        default: 'failure'
+        type: choice
+        options:
+          - failure
+          - cancelled
+          - both
+          - all
+        default: failure
       page_mode:
         description: 'Choose "range" to specify pages or "all" to delete all available pages'
         required: true
-        default: 'range'
+        type: choice
+        options:
+          - range
+          - all
+        default: range
       start_page:
         description: 'Start page number (used only if page_mode = range)'
         required: false
@@ -31,7 +41,7 @@ jobs:
       - name: Checkout repository (optional)
         uses: actions/checkout@v4
 
-      - name: Delete workflow runs
+      - name: Cleanup Workflow Runs
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
           REPO: ${{ github.repository }}
@@ -41,9 +51,11 @@ jobs:
           END_PAGE: ${{ github.event.inputs.end_page }}
         run: |
           set +e
+          echo "------------------------------------------"
           echo "Repository: $REPO"
           echo "Run type: $RUN_STATUS"
           echo "Page mode: $PAGE_MODE"
+          echo "------------------------------------------"
 
           # Determine which statuses to include
           STATUSES=()
@@ -51,27 +63,30 @@ jobs:
             STATUSES=("failure")
           elif [ "$RUN_STATUS" = "cancelled" ]; then
             STATUSES=("cancelled")
-          else
+          elif [ "$RUN_STATUS" = "both" ]; then
             STATUSES=("failure" "cancelled")
+          else
+            # 'all' includes all statuses GitHub supports
+            STATUSES=("failure" "cancelled" "success" "in_progress" "queued")
           fi
 
           DELETED=0
           FAILED=0
           TOTAL=0
 
-          # Function to get total pages (auto detection)
+          # Function to detect total pages dynamically
           get_total_pages() {
-            echo "Detecting total pages for $1 runs..."
+            STATUS="$1"
             PAGE=1
+            echo "Detecting total pages for status: $STATUS..."
             while true; do
               RUN_IDS=$(gh run list \
                 --repo "$REPO" \
-                --status "$1" \
+                --status "$STATUS" \
                 --json databaseId \
                 --limit 100 \
                 --page "$PAGE" \
                 -q '.[].databaseId' 2>/dev/null || echo "")
-
               if [ -z "$RUN_IDS" ]; then
                 break
               fi
@@ -80,7 +95,7 @@ jobs:
             echo $((PAGE - 1))
           }
 
-          # Determine page range
+          # If user selected "all" page mode, detect automatically
           if [ "$PAGE_MODE" = "all" ]; then
             MAX_PAGE=0
             for STATUS in "${STATUSES[@]}"; do
@@ -91,18 +106,18 @@ jobs:
             done
             START_PAGE=1
             END_PAGE=$MAX_PAGE
-            echo "Detected total pages: $END_PAGE"
+            echo "Auto-detected total pages: $END_PAGE"
           fi
 
-          echo "Deleting pages $START_PAGE to $END_PAGE..."
+          echo "Processing pages $START_PAGE to $END_PAGE"
           echo "------------------------------------------"
 
-          # Loop through pages
+          # Loop through pages and statuses
           for (( PAGE=$START_PAGE; PAGE<=$END_PAGE; PAGE++ )); do
             echo ""
-            echo "Processing page $PAGE..."
+            echo "🔹 Processing page $PAGE..."
             for STATUS in "${STATUSES[@]}"; do
-              echo "→ Checking runs with status: $STATUS"
+              echo "→ Fetching runs with status: $STATUS"
               RUN_IDS=$(gh run list \
                 --repo "$REPO" \
                 --status "$STATUS" \
@@ -118,7 +133,7 @@ jobs:
 
               COUNT=$(echo "$RUN_IDS" | wc -w)
               TOTAL=$((TOTAL + COUNT))
-              echo "  Found $COUNT run(s) on page $PAGE."
+              echo "  Found $COUNT run(s)."
 
               for RUN_ID in $RUN_IDS; do
                 echo "Deleting run ID: $RUN_ID ..."
@@ -129,10 +144,10 @@ jobs:
 
                 HTTP_CODE=$(echo "$OUTPUT" | grep "HTTP_CODE:" | cut -d: -f2)
                 if [ "$HTTP_CODE" = "204" ]; then
-                  echo "  ✔ Deleted successfully"
+                  echo "  ✔ Successfully deleted run $RUN_ID"
                   DELETED=$((DELETED + 1))
                 else
-                  echo "  ✖ Failed (HTTP $HTTP_CODE)"
+                  echo "  ✖ Failed to delete run $RUN_ID (HTTP $HTTP_CODE)"
                   FAILED=$((FAILED + 1))
                 fi
                 sleep 1
@@ -143,7 +158,7 @@ jobs:
           echo ""
           echo "------------------------------------------"
           echo "Cleanup Summary:"
-          echo "  Total processed: $TOTAL"
-          echo "  Deleted: $DELETED"
+          echo "  Total runs found: $TOTAL"
+          echo "  Successfully deleted: $DELETED"
           echo "  Failed deletions: $FAILED"
-          echo "Done!"
+          echo "Done ✅"
