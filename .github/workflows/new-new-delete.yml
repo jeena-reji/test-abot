@@ -1,4 +1,4 @@
-name: Cleanup Workflow Runs (Final Fixed Version)
+name: Cleanup Workflow Runs (Final Accurate Version)
 
 on:
   workflow_dispatch:
@@ -12,7 +12,7 @@ on:
           - cancelled
           - both
           - all
-        default: failure
+        default: cancelled
       page_mode:
         description: 'Choose "range" to specify pages or "all" to delete all available pages'
         required: true
@@ -59,24 +59,11 @@ jobs:
           FAILED=0
           TOTAL=0
 
-          # Define which statuses to include
-          if [ "$RUN_STATUS" = "failure" ]; then
-            STATUSES=("failure")
-          elif [ "$RUN_STATUS" = "cancelled" ]; then
-            STATUSES=("cancelled")
-          elif [ "$RUN_STATUS" = "both" ]; then
-            STATUSES=("failure" "cancelled")
-          else
-            STATUSES=("failure" "cancelled" "success" "in_progress" "queued")
-          fi
-
-          # Detect total pages per selected status
-          detect_total_pages_for_status() {
-            STATUS="$1"
+          detect_total_pages() {
             PAGE=1
             COUNT=0
             while true; do
-              RUNS=$(gh run list --repo "$REPO" --status "$STATUS" --limit "$PAGE_SIZE" --page "$PAGE" --json databaseId -q '.[].databaseId' 2>/dev/null)
+              RUNS=$(gh run list --repo "$REPO" --limit "$PAGE_SIZE" --page "$PAGE" --json databaseId -q '.[].databaseId' 2>/dev/null)
               if [ -z "$RUNS" ]; then
                 break
               fi
@@ -86,31 +73,17 @@ jobs:
             echo "$COUNT"
           }
 
-          TOTAL_PAGES=0
-          for STATUS in "${STATUSES[@]}"; do
-            PAGES=$(detect_total_pages_for_status "$STATUS")
-            if [ "$PAGES" -gt "$TOTAL_PAGES" ]; then
-              TOTAL_PAGES=$PAGES
-            fi
-          done
+          TOTAL_PAGES=$(detect_total_pages)
+          echo "Detected total pages in repo: $TOTAL_PAGES"
 
-          echo "Detected total pages for selected status(es): $TOTAL_PAGES"
-
-          # Adjust range if "all" mode
           if [ "$PAGE_MODE" = "all" ]; then
             START_PAGE=1
             END_PAGE=$TOTAL_PAGES
           fi
 
-          # Validate range
           if [ "$END_PAGE" -gt "$TOTAL_PAGES" ]; then
             echo "⚠️ Warning: Selected end page ($END_PAGE) exceeds available pages ($TOTAL_PAGES). Adjusting automatically."
             END_PAGE=$TOTAL_PAGES
-          fi
-
-          if [ "$TOTAL_PAGES" -eq 0 ]; then
-            echo "❌ No workflow runs found for the selected status(es)."
-            exit 0
           fi
 
           echo "Processing pages $START_PAGE to $END_PAGE (page size: $PAGE_SIZE)"
@@ -119,40 +92,54 @@ jobs:
           for (( PAGE=$START_PAGE; PAGE<=$END_PAGE; PAGE++ )); do
             echo ""
             echo "🔹 Processing page $PAGE..."
-            for STATUS in "${STATUSES[@]}"; do
-              echo "→ Fetching runs with status: $STATUS"
-              RUNS=$(gh run list \
-                --repo "$REPO" \
-                --status "$STATUS" \
-                --limit "$PAGE_SIZE" \
-                --page "$PAGE" \
-                --json databaseId \
-                -q '.[].databaseId' 2>/dev/null)
-              if [ -z "$RUNS" ]; then
-                echo "  No runs found for $STATUS on this page."
-                continue
+            RUNS=$(gh run list \
+              --repo "$REPO" \
+              --limit "$PAGE_SIZE" \
+              --page "$PAGE" \
+              --json databaseId,status,conclusion \
+              2>/dev/null)
+
+            if [ -z "$RUNS" ]; then
+              echo "  No runs found on this page."
+              continue
+            fi
+
+            # Filter by conclusion/status
+            if [ "$RUN_STATUS" = "failure" ]; then
+              FILTER='.conclusion == "failure"'
+            elif [ "$RUN_STATUS" = "cancelled" ]; then
+              FILTER='.conclusion == "cancelled"'
+            elif [ "$RUN_STATUS" = "both" ]; then
+              FILTER='(.conclusion == "failure" or .conclusion == "cancelled")'
+            else
+              FILTER='true'
+            fi
+
+            MATCHING_RUNS=$(echo "$RUNS" | jq -r ".[] | select($FILTER) | .databaseId")
+
+            if [ -z "$MATCHING_RUNS" ]; then
+              echo "  No matching runs found on this page."
+              continue
+            fi
+
+            COUNT=$(echo "$MATCHING_RUNS" | wc -l)
+            TOTAL=$((TOTAL + COUNT))
+            echo "  Found $COUNT matching run(s) to delete."
+
+            for RUN_ID in $MATCHING_RUNS; do
+              echo "  Deleting run ID: $RUN_ID ..."
+              HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+                -H "Authorization: token $GITHUB_TOKEN" \
+                -H "Accept: application/vnd.github.v3+json" \
+                -X DELETE "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID")
+              if [ "$HTTP_CODE" = "204" ]; then
+                echo "    ✔ Successfully deleted run $RUN_ID"
+                DELETED=$((DELETED + 1))
+              else
+                echo "    ✖ Failed to delete run $RUN_ID (HTTP $HTTP_CODE)"
+                FAILED=$((FAILED + 1))
               fi
-
-              COUNT=$(echo "$RUNS" | wc -w)
-              TOTAL=$((TOTAL + COUNT))
-              echo "  Found $COUNT run(s) to delete for $STATUS."
-
-              for RUN_ID in $RUNS; do
-                echo "  Deleting run ID: $RUN_ID ..."
-                HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-                  -H "Authorization: token $GITHUB_TOKEN" \
-                  -H "Accept: application/vnd.github.v3+json" \
-                  -X DELETE "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID")
-
-                if [ "$HTTP_CODE" = "204" ]; then
-                  echo "    ✔ Successfully deleted run $RUN_ID"
-                  DELETED=$((DELETED + 1))
-                else
-                  echo "    ✖ Failed to delete run $RUN_ID (HTTP $HTTP_CODE)"
-                  FAILED=$((FAILED + 1))
-                fi
-                sleep 1
-              done
+              sleep 1
             done
           done
 
