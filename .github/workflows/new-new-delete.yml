@@ -1,4 +1,4 @@
-name: Cleanup Workflow Runs (Flexible + All Options)
+name: Cleanup Workflow Runs (Accurate + All Options)
 
 on:
   workflow_dispatch:
@@ -22,11 +22,11 @@ on:
           - all
         default: range
       start_page:
-        description: 'Start page number (used only if page_mode = range)'
+        description: 'Start page number (only used if page_mode = range)'
         required: false
         default: '1'
       end_page:
-        description: 'End page number (used only if page_mode = range)'
+        description: 'End page number (only used if page_mode = range)'
         required: false
         default: '1'
 
@@ -38,9 +38,6 @@ jobs:
   cleanup:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository (optional)
-        uses: actions/checkout@v4
-
       - name: Cleanup Workflow Runs
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
@@ -58,8 +55,7 @@ jobs:
           echo "Page mode: $PAGE_MODE"
           echo "------------------------------------------"
 
-          # Determine which statuses to include
-          STATUSES=()
+          # Define status filters
           if [ "$RUN_STATUS" = "failure" ]; then
             STATUSES=("failure")
           elif [ "$RUN_STATUS" = "cancelled" ]; then
@@ -67,98 +63,70 @@ jobs:
           elif [ "$RUN_STATUS" = "both" ]; then
             STATUSES=("failure" "cancelled")
           else
-            # 'all' includes all statuses GitHub supports
             STATUSES=("failure" "cancelled" "success" "in_progress" "queued")
           fi
 
-          DELETED=0
-          FAILED=0
-          TOTAL=0
+          # Determine all runs (filtered first)
+          ALL_RUNS=()
+          for STATUS in "${STATUSES[@]}"; do
+            echo "Fetching all runs with status: $STATUS ..."
+            IDS=$(gh run list --repo "$REPO" --status "$STATUS" --json databaseId -q '.[].databaseId' 2>/dev/null || echo "")
+            if [ -n "$IDS" ]; then
+              ALL_RUNS+=($IDS)
+            fi
+          done
 
-          # Function to detect total pages dynamically
-          get_total_pages() {
-            STATUS="$1"
-            PAGE=1
-            while true; do
-              RUN_IDS=$(gh run list \
-                --repo "$REPO" \
-                --status "$STATUS" \
-                --json databaseId \
-                --limit "$PAGE_SIZE" \
-                --page "$PAGE" \
-                -q '.[].databaseId' 2>/dev/null || echo "")
-              if [ -z "$RUN_IDS" ]; then
-                break
-              fi
-              PAGE=$((PAGE + 1))
-            done
-            echo $((PAGE - 1))
-          }
+          TOTAL_RUNS=${#ALL_RUNS[@]}
+          if [ "$TOTAL_RUNS" -eq 0 ]; then
+            echo "No runs found for selected status(es)."
+            exit 0
+          fi
 
-          # Auto-detect all pages
+          echo "Total matching runs found: $TOTAL_RUNS"
+
+          # Determine pages
           if [ "$PAGE_MODE" = "all" ]; then
-            MAX_PAGE=0
-            for STATUS in "${STATUSES[@]}"; do
-              PAGES=$(get_total_pages "$STATUS")
-              if [ "$PAGES" -gt "$MAX_PAGE" ]; then
-                MAX_PAGE=$PAGES
-              fi
-            done
             START_PAGE=1
-            END_PAGE=$MAX_PAGE
-            echo "Auto-detected total pages: $END_PAGE"
+            END_PAGE=$(( (TOTAL_RUNS + PAGE_SIZE - 1) / PAGE_SIZE ))
           fi
 
           echo "Processing pages $START_PAGE to $END_PAGE (page size: $PAGE_SIZE)"
           echo "------------------------------------------"
 
-          # Loop through pages and statuses
-          for (( PAGE=$START_PAGE; PAGE<=$END_PAGE; PAGE++ )); do
+          DELETED=0
+          FAILED=0
+          PAGE=$START_PAGE
+          while [ "$PAGE" -le "$END_PAGE" ]; do
+            OFFSET=$(( (PAGE - 1) * PAGE_SIZE ))
             echo ""
-            echo "🔹 Processing page $PAGE..."
-            for STATUS in "${STATUSES[@]}"; do
-              echo "→ Fetching runs with status: $STATUS"
-              RUN_IDS=$(gh run list \
-                --repo "$REPO" \
-                --status "$STATUS" \
-                --json databaseId \
-                --limit "$PAGE_SIZE" \
-                --page "$PAGE" \
-                -q '.[].databaseId' 2>/dev/null || echo "")
-
-              if [ -z "$RUN_IDS" ]; then
-                echo "  No runs found for $STATUS on page $PAGE."
-                continue
+            echo "🔹 Processing page $PAGE (runs $((OFFSET + 1)) to $((OFFSET + PAGE_SIZE)))..."
+            PAGE_RUNS=("${ALL_RUNS[@]:$OFFSET:$PAGE_SIZE}")
+            if [ "${#PAGE_RUNS[@]}" -eq 0 ]; then
+              echo "  No runs on this page."
+              PAGE=$((PAGE + 1))
+              continue
+            fi
+            for RUN_ID in "${PAGE_RUNS[@]}"; do
+              echo "Deleting run ID: $RUN_ID ..."
+              HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+                -H "Authorization: token $GITHUB_TOKEN" \
+                -H "Accept: application/vnd.github.v3+json" \
+                -X DELETE "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID")
+              if [ "$HTTP_CODE" = "204" ]; then
+                echo "  ✔ Deleted $RUN_ID"
+                DELETED=$((DELETED + 1))
+              else
+                echo "  ✖ Failed to delete $RUN_ID (HTTP $HTTP_CODE)"
+                FAILED=$((FAILED + 1))
               fi
-
-              COUNT=$(echo "$RUN_IDS" | wc -w)
-              TOTAL=$((TOTAL + COUNT))
-              echo "  Found $COUNT run(s) on page $PAGE."
-
-              for RUN_ID in $RUN_IDS; do
-                echo "Deleting run ID: $RUN_ID ..."
-                OUTPUT=$(curl -s -w "\nHTTP_CODE:%{http_code}" -o /tmp/body.txt -X DELETE \
-                  -H "Authorization: token $GITHUB_TOKEN" \
-                  -H "Accept: application/vnd.github.v3+json" \
-                  "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID" 2>/dev/null)
-
-                HTTP_CODE=$(echo "$OUTPUT" | grep "HTTP_CODE:" | cut -d: -f2)
-                if [ "$HTTP_CODE" = "204" ]; then
-                  echo "  ✔ Successfully deleted run $RUN_ID"
-                  DELETED=$((DELETED + 1))
-                else
-                  echo "  ✖ Failed to delete run $RUN_ID (HTTP $HTTP_CODE)"
-                  FAILED=$((FAILED + 1))
-                fi
-                sleep 1
-              done
+              sleep 1
             done
+            PAGE=$((PAGE + 1))
           done
 
           echo ""
           echo "------------------------------------------"
           echo "Cleanup Summary:"
-          echo "  Total runs found: $TOTAL"
           echo "  Successfully deleted: $DELETED"
           echo "  Failed deletions: $FAILED"
           echo "Done ✅"
