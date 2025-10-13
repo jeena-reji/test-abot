@@ -1,4 +1,4 @@
-name: Cleanup Workflow Runs (Accurate + All Options)
+name: Cleanup Workflow Runs (Accurate + Range Support)
 
 on:
   workflow_dispatch:
@@ -63,7 +63,7 @@ jobs:
           detect_total_pages() {
             PAGE=1
             while true; do
-              RUNS=$(gh run list --repo "$REPO" --json databaseId --limit "$PAGE_SIZE" --page "$PAGE" -q '.[].databaseId' 2>/dev/null)
+              RUNS=$(gh run list --repo "$REPO" --limit "$PAGE_SIZE" --page "$PAGE" --json databaseId -q '.[].databaseId' 2>/dev/null)
               if [ -z "$RUNS" ]; then
                 break
               fi
@@ -73,10 +73,18 @@ jobs:
           }
 
           # Detect total pages if "all" mode
+          TOTAL_PAGES=$(detect_total_pages)
+          echo "Detected total pages in repo: $TOTAL_PAGES"
+
           if [ "$PAGE_MODE" = "all" ]; then
-            END_PAGE=$(detect_total_pages)
             START_PAGE=1
-            echo "Detected total pages: $END_PAGE"
+            END_PAGE=$TOTAL_PAGES
+          fi
+
+          # Warn if page range is invalid
+          if [ "$END_PAGE" -gt "$TOTAL_PAGES" ]; then
+            echo "⚠️ Warning: Selected end page ($END_PAGE) exceeds available pages ($TOTAL_PAGES). Adjusting automatically."
+            END_PAGE=$TOTAL_PAGES
           fi
 
           echo "Processing pages $START_PAGE to $END_PAGE (page size: $PAGE_SIZE)"
@@ -87,17 +95,17 @@ jobs:
             echo "🔹 Processing page $PAGE..."
             RUNS=$(gh run list \
               --repo "$REPO" \
-              --json databaseId,status \
               --limit "$PAGE_SIZE" \
               --page "$PAGE" \
+              --json databaseId,status \
               -q '.[] | {id: .databaseId, status: .status}' 2>/dev/null)
 
             if [ -z "$RUNS" ]; then
-              echo "  No runs found on this page."
+              echo "  ⚠️ No runs found on this page."
               continue
             fi
 
-            # Filter based on run_status input
+            # Filter runs by selected status
             if [ "$RUN_STATUS" = "failure" ]; then
               FILTER=".status == \"failure\""
             elif [ "$RUN_STATUS" = "cancelled" ]; then
@@ -108,30 +116,29 @@ jobs:
               FILTER="true"
             fi
 
-            # Extract matching run IDs
             MATCHING_RUNS=$(echo "$RUNS" | jq -r "select($FILTER) | .id")
 
             if [ -z "$MATCHING_RUNS" ]; then
-              echo "  No matching runs found on page $PAGE."
+              echo "  No matching runs found on this page for status filter."
               continue
             fi
 
             COUNT=$(echo "$MATCHING_RUNS" | wc -l)
             TOTAL=$((TOTAL + COUNT))
-            echo "  Found $COUNT matching run(s)."
+            echo "  Found $COUNT matching run(s) for deletion."
 
             for RUN_ID in $MATCHING_RUNS; do
-              echo "Deleting run ID: $RUN_ID ..."
+              echo "  Deleting run ID: $RUN_ID ..."
               HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
                 -H "Authorization: token $GITHUB_TOKEN" \
                 -H "Accept: application/vnd.github.v3+json" \
                 -X DELETE "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID")
 
               if [ "$HTTP_CODE" = "204" ]; then
-                echo "  ✔ Deleted $RUN_ID"
+                echo "    ✔ Successfully deleted run $RUN_ID"
                 DELETED=$((DELETED + 1))
               else
-                echo "  ✖ Failed to delete $RUN_ID (HTTP $HTTP_CODE)"
+                echo "    ✖ Failed to delete run $RUN_ID (HTTP $HTTP_CODE)"
                 FAILED=$((FAILED + 1))
               fi
               sleep 1
