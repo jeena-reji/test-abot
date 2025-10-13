@@ -1,4 +1,4 @@
-name: Cleanup Workflow Runs (Accurate + Range Support)
+name: Cleanup Workflow Runs (Final Fixed Version)
 
 on:
   workflow_dispatch:
@@ -59,32 +59,58 @@ jobs:
           FAILED=0
           TOTAL=0
 
-          # Function to detect total pages dynamically
-          detect_total_pages() {
+          # Define which statuses to include
+          if [ "$RUN_STATUS" = "failure" ]; then
+            STATUSES=("failure")
+          elif [ "$RUN_STATUS" = "cancelled" ]; then
+            STATUSES=("cancelled")
+          elif [ "$RUN_STATUS" = "both" ]; then
+            STATUSES=("failure" "cancelled")
+          else
+            STATUSES=("failure" "cancelled" "success" "in_progress" "queued")
+          fi
+
+          # Detect total pages per selected status
+          detect_total_pages_for_status() {
+            STATUS="$1"
             PAGE=1
+            COUNT=0
             while true; do
-              RUNS=$(gh run list --repo "$REPO" --limit "$PAGE_SIZE" --page "$PAGE" --json databaseId -q '.[].databaseId' 2>/dev/null)
+              RUNS=$(gh run list --repo "$REPO" --status "$STATUS" --limit "$PAGE_SIZE" --page "$PAGE" --json databaseId -q '.[].databaseId' 2>/dev/null)
               if [ -z "$RUNS" ]; then
                 break
               fi
+              COUNT=$PAGE
               PAGE=$((PAGE + 1))
             done
-            echo $((PAGE - 1))
+            echo "$COUNT"
           }
 
-          # Detect total pages if "all" mode
-          TOTAL_PAGES=$(detect_total_pages)
-          echo "Detected total pages in repo: $TOTAL_PAGES"
+          TOTAL_PAGES=0
+          for STATUS in "${STATUSES[@]}"; do
+            PAGES=$(detect_total_pages_for_status "$STATUS")
+            if [ "$PAGES" -gt "$TOTAL_PAGES" ]; then
+              TOTAL_PAGES=$PAGES
+            fi
+          done
 
+          echo "Detected total pages for selected status(es): $TOTAL_PAGES"
+
+          # Adjust range if "all" mode
           if [ "$PAGE_MODE" = "all" ]; then
             START_PAGE=1
             END_PAGE=$TOTAL_PAGES
           fi
 
-          # Warn if page range is invalid
+          # Validate range
           if [ "$END_PAGE" -gt "$TOTAL_PAGES" ]; then
             echo "⚠️ Warning: Selected end page ($END_PAGE) exceeds available pages ($TOTAL_PAGES). Adjusting automatically."
             END_PAGE=$TOTAL_PAGES
+          fi
+
+          if [ "$TOTAL_PAGES" -eq 0 ]; then
+            echo "❌ No workflow runs found for the selected status(es)."
+            exit 0
           fi
 
           echo "Processing pages $START_PAGE to $END_PAGE (page size: $PAGE_SIZE)"
@@ -93,55 +119,40 @@ jobs:
           for (( PAGE=$START_PAGE; PAGE<=$END_PAGE; PAGE++ )); do
             echo ""
             echo "🔹 Processing page $PAGE..."
-            RUNS=$(gh run list \
-              --repo "$REPO" \
-              --limit "$PAGE_SIZE" \
-              --page "$PAGE" \
-              --json databaseId,status \
-              -q '.[] | {id: .databaseId, status: .status}' 2>/dev/null)
-
-            if [ -z "$RUNS" ]; then
-              echo "  ⚠️ No runs found on this page."
-              continue
-            fi
-
-            # Filter runs by selected status
-            if [ "$RUN_STATUS" = "failure" ]; then
-              FILTER=".status == \"failure\""
-            elif [ "$RUN_STATUS" = "cancelled" ]; then
-              FILTER=".status == \"cancelled\""
-            elif [ "$RUN_STATUS" = "both" ]; then
-              FILTER="(.status == \"failure\" or .status == \"cancelled\")"
-            else
-              FILTER="true"
-            fi
-
-            MATCHING_RUNS=$(echo "$RUNS" | jq -r "select($FILTER) | .id")
-
-            if [ -z "$MATCHING_RUNS" ]; then
-              echo "  No matching runs found on this page for status filter."
-              continue
-            fi
-
-            COUNT=$(echo "$MATCHING_RUNS" | wc -l)
-            TOTAL=$((TOTAL + COUNT))
-            echo "  Found $COUNT matching run(s) for deletion."
-
-            for RUN_ID in $MATCHING_RUNS; do
-              echo "  Deleting run ID: $RUN_ID ..."
-              HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-                -H "Authorization: token $GITHUB_TOKEN" \
-                -H "Accept: application/vnd.github.v3+json" \
-                -X DELETE "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID")
-
-              if [ "$HTTP_CODE" = "204" ]; then
-                echo "    ✔ Successfully deleted run $RUN_ID"
-                DELETED=$((DELETED + 1))
-              else
-                echo "    ✖ Failed to delete run $RUN_ID (HTTP $HTTP_CODE)"
-                FAILED=$((FAILED + 1))
+            for STATUS in "${STATUSES[@]}"; do
+              echo "→ Fetching runs with status: $STATUS"
+              RUNS=$(gh run list \
+                --repo "$REPO" \
+                --status "$STATUS" \
+                --limit "$PAGE_SIZE" \
+                --page "$PAGE" \
+                --json databaseId \
+                -q '.[].databaseId' 2>/dev/null)
+              if [ -z "$RUNS" ]; then
+                echo "  No runs found for $STATUS on this page."
+                continue
               fi
-              sleep 1
+
+              COUNT=$(echo "$RUNS" | wc -w)
+              TOTAL=$((TOTAL + COUNT))
+              echo "  Found $COUNT run(s) to delete for $STATUS."
+
+              for RUN_ID in $RUNS; do
+                echo "  Deleting run ID: $RUN_ID ..."
+                HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+                  -H "Authorization: token $GITHUB_TOKEN" \
+                  -H "Accept: application/vnd.github.v3+json" \
+                  -X DELETE "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID")
+
+                if [ "$HTTP_CODE" = "204" ]; then
+                  echo "    ✔ Successfully deleted run $RUN_ID"
+                  DELETED=$((DELETED + 1))
+                else
+                  echo "    ✖ Failed to delete run $RUN_ID (HTTP $HTTP_CODE)"
+                  FAILED=$((FAILED + 1))
+                fi
+                sleep 1
+              done
             done
           done
 
