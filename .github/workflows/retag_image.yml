@@ -1,0 +1,29 @@
+name: Pull, Retag and Push to GHCR
+
+on:
+  workflow_dispatch:
+
+jobs:
+  retag:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Pull Existing Image
+        run: |
+          docker pull ghcr.io/ios-mcn-ran/ran-base-dis:v2026.10.4.randis-pilot.openairinterface5g
+
+      - name: Retag Image
+        run: |
+          docker tag \
+          ghcr.io/ios-mcn-ran/ran-base-dis:v2026.10.4.randis-pilot.openairinterface5g \
+          ghcr.io/ios-mcn-ran/ran-base-dis:v0.4.2.rc1
+
+      - name: Push New Tag
+        run: |
+          docker push ghcr.io/ios-mcn-ran/ran-base-dis:v0.4.2.rc1
