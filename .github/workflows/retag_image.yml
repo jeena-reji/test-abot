@@ -25,4 +25,4 @@ jobs:
 
       - name: Push New Tag
         run: |
-          docker push ghcr.io/ios-mcn-ran/ran-base-dis:v0.4.2.rc1
+          docker push ghcr.io/ios-mcn-ran/ran-build-dis:v0.4.2.rc1
