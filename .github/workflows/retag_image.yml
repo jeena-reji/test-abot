@@ -21,8 +21,8 @@ jobs:
         run: |
           docker tag \
            ghcr.io/ios-mcn-ran/ios-mcn-nr-ue-dis:v2026.10.4.randis-pilot.openairinterface5g \
-           ghcr.io/ios-mcn-ran/ios-mcn-nr-ue-dis:v0.4.2.rc1
+           ghcr.io/ios-mcn-ran/ios-mcn-nr-ue-dis:v0.4.2.rc1.openairinterface5g
 
       - name: Push New Tag
         run: |
-          docker push ghcr.io/ios-mcn-ran/ios-mcn-nr-ue-dis:v0.4.2.rc1
+          docker push ghcr.io/ios-mcn-ran/ios-mcn-nr-ue-dis:v0.4.2.rc1.openairinterface5g
