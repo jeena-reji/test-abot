@@ -25,4 +25,4 @@ jobs:
 
       - name: Push New Tag
         run: |
-          docker push ghcr.io/ios-mcn-ran/:vios-mcn-cuup-dis:v0.4.2.rc1.openairinterface5g
+          docker push ghcr.io/ios-mcn-ran/:ios-mcn-cuup-dis:v0.4.2.rc1.openairinterface5g
