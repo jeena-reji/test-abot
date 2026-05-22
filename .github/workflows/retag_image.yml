@@ -16,13 +16,13 @@ jobs:
 
       - name: Pull Existing Image
         run: |
-          docker pull ghcr.io/ios-mcn-ran/ios-mcn-nr-ue-dis:v2026.10.4.randis-pilot.openairinterface5g
+          docker pull ghcr.io/ios-mcn-ran/ios-mcn-cuup-dis:v2026.10.4.randis-pilot.openairinterface5g
       - name: Retag Image
         run: |
           docker tag \
-           ghcr.io/ios-mcn-ran/ios-mcn-nr-ue-dis:v2026.10.4.randis-pilot.openairinterface5g \
-           ghcr.io/ios-mcn-ran/ios-mcn-nr-ue-dis:v0.4.2.rc1.openairinterface5g
+           ghcr.io/ios-mcn-ran/ios-mcn-cuup-dis:v2026.10.4.randis-pilot.openairinterface5g \
+           ghcr.io/ios-mcn-ran/ios-mcn-cuup-dis:v0.4.2.rc1.openairinterface5g
 
       - name: Push New Tag
         run: |
-          docker push ghcr.io/ios-mcn-ran/ios-mcn-nr-ue-dis:v0.4.2.rc1.openairinterface5g
+          docker push ghcr.io/ios-mcn-ran/:vios-mcn-cuup-dis:v0.4.2.rc1.openairinterface5g
